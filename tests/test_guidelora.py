@@ -55,6 +55,17 @@ try:
 except ValueError as exc:
     check("on with no file refuses, naming the pill", "pill" in str(exc), True)
 
+# --- the caption --------------------------------------------------------------------
+
+LMS = "Enhance this video with sharp, crisp details while preserving a natural photorealistic appearance."
+check("the sharpener's caption, by stem", gl.caption_for("h3/Minimax_H3_LMS_v1.0_r64.safetensors"), LMS)
+check("a style file has none", gl.caption_for("h3/minimax_h3_style_transfer_v1.0_r64.safetensors"), "")
+check("an empty prompt takes the caption",
+      gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE}}).prompt, LMS)
+check("a written prompt is kept",
+      gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "prompt": "neon"}}).prompt, "neon")
+check("off fills nothing", gl.Request.of({"guide_lora": {"on": False, "lora": GUIDE}}).prompt, "")
+
 # --- the stack -------------------------------------------------------------------------
 
 plain = gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE}, "loras": STACK})

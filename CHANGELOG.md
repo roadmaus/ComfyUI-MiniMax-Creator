@@ -26,7 +26,9 @@ under turbo is the published rig. The soundtrack rides through untouched
 its own last frame and trimmed back after decode, and the pass runs before
 ReDetail and the DLSS refiner and never inline at a seam — a sharpened
 anchor is the ratchet the refiner was measured to have. The pill picks the
-file from `models/loras` and puts its trigger caption in the prompt; the
+file from `models/loras` and puts its caption in the prompt — the published
+one from `guidelora.CAPTIONS` for the sharpener, the card's trigger words
+otherwise — and the node fills an empty prompt from the same table; the
 block is `guide_lora` on the piece and the timeline, absent while off, so
 every blob that never asked round-trips as it did. `families/h3/guidelora.py`
 is the pure half (request, stack, grid) and `guidepass.py` the nodes; the

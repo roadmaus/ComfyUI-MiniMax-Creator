@@ -56,6 +56,28 @@ DEFAULT_STRENGTH = 1.0
 MIN_STRENGTH = 0.0
 MAX_STRENGTH = 2.0
 
+# What the published files are told, by filename. A guide file's caption is
+# its instruction and the files ship without a sidecar carrying it, so the
+# pill and the node both read it from here: the pill writes it into the
+# prompt box when the file is picked and the box is empty, the node uses it
+# at queue time when the box was left empty. A style file has no fixed
+# caption — the style is the prompt — so it is not in the table. Matched
+# case-insensitively against the file's name, first hit wins.
+CAPTIONS = [
+    {"match": "lms",
+     "prompt": "Enhance this video with sharp, crisp details while preserving a "
+               "natural photorealistic appearance."},
+]
+
+
+def caption_for(name):
+    """The published caption for the file `name`, or ""."""
+    stem = str(name or "").split("/")[-1].lower()
+    for entry in CAPTIONS:
+        if entry["match"] in stem:
+            return entry["prompt"]
+    return ""
+
 
 def _number(value, low, high, fallback):
     try:
@@ -109,6 +131,8 @@ class Request:
                 "The guide LoRA pass is switched on and no file has been picked. "
                 "Open the pass's pill and choose a guide LoRA from models/loras, "
                 "or switch the pass off.")
+        if request.on and not request.prompt:
+            request.prompt = caption_for(request.lora)
         request.entries = entries(data, request, run)
         return request
 

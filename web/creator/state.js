@@ -1518,6 +1518,14 @@ export function parseGuideLora(raw, family = DEFAULT_VIDEO_FAMILY) {
   return block;
 }
 
+/** The published caption for a guide file, off the family's table, or "".
+ *  Mirrors `guidelora.caption_for`: the stem, lower-cased, first match wins. */
+export function guideLoraCaption(name, family = DEFAULT_VIDEO_FAMILY) {
+  const stem = String(name ?? "").split("/").pop().toLowerCase();
+  const table = videoFamily(family).capabilities?.guide_lora?.captions ?? [];
+  return table.find((entry) => stem.includes(entry.match))?.prompt ?? "";
+}
+
 /** Absent while it is off, so every blob that never asked for one is unchanged. */
 export const serializeGuideLora = (block) => (block?.on
   ? { guide_lora: { on: true, lora: block.lora, strength: block.strength,

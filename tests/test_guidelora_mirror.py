@@ -33,6 +33,7 @@ const out = {
   piece_off: "guide_lora" in JSON.parse(s.serializeState(s.parseState(JSON.stringify({ version: 2 })))),
   timeline: JSON.parse(s.serializeTimeline(s.parseTimeline(JSON.stringify({ guide_lora: cases.full })))).guide_lora,
   timeline_off: "guide_lora" in JSON.parse(s.serializeTimeline(s.parseTimeline("{}"))),
+  captions: Object.fromEntries(JSON.parse(process.argv[3]).map((name) => [name, s.guideLoraCaption(name)])),
 };
 for (const [name, raw] of Object.entries(cases)) {
   out.parsed[name] = s.parseGuideLora(raw);
@@ -41,7 +42,10 @@ for (const [name, raw] of Object.entries(cases)) {
 console.log(JSON.stringify(out));
 """
 
-GUIDE = "h3/minimax_h3_lms_v1.0_r64.safetensors"
+# A file with no published caption: the node fills an empty prompt from the
+# table at queue time and the pill fills it on pick, so on a captioned file
+# the two parses differ by design. The table itself is mirrored below.
+GUIDE = "h3/minimax_h3_style_transfer_v1.0_r64.safetensors"
 CASES = {
     "full": {"on": True, "lora": GUIDE, "strength": 1.3, "prompt": "sharp", "checkpoint": "fl2va"},
     "off": {"on": False, "lora": GUIDE},
@@ -52,7 +56,11 @@ CASES = {
     "spaces": {"on": True, "lora": f" {GUIDE} ", "prompt": "  a  "},
 }
 
-js = layout.run(SCRIPT, MIRROR, CASES)
+NAMES = ["h3/Minimax_H3_LMS_v1.0_r64.safetensors", GUIDE, "lms.safetensors", ""]
+js = layout.run(SCRIPT, MIRROR, CASES, NAMES)
+
+for name in NAMES:
+    check(f"caption for {name!r}", js["captions"][name], gl.caption_for(name))
 
 check("strength stops", js["strength"],
       {"min": gl.MIN_STRENGTH, "max": gl.MAX_STRENGTH, "step": 0.05, "default": gl.DEFAULT_STRENGTH})

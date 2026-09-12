@@ -14,7 +14,7 @@ import { UPSCALE_MODES, DEFAULT_REFINE_DENOISE, MIN_REFINE_DENOISE, MAX_REFINE_D
          MIN_FACE_CANVAS, MAX_FACE_CANVAS,
          MIN_FACE_DENOISE, MAX_FACE_DENOISE,
          emptyNeural, NEURAL_DEFAULTS, NEURAL_RANGES,
-         neuralEstimateGb, emptyGuideLora, GUIDE_LORA_STRENGTH } from "./state.js";
+         neuralEstimateGb, emptyGuideLora, GUIDE_LORA_STRENGTH, guideLoraCaption } from "./state.js";
 import { UPSCALERS, NEURAL } from "./manifest.js";
 import { neuralRail, neuralSwitch, neuralDial, neuralChoice, savedProfiles, saveProfile,
          forgetProfile, sameProfile, applyProfile, profileOf, startingBlock } from "./neural.js";
@@ -1240,10 +1240,11 @@ export function guideLoraPill({ target, commit }) {
  *
  * The file is picked from a short search over `models/loras` rather than the
  * LoRA manager: the manager edits a *stack*, and this is one file in one slot.
- * Picking a file whose card carries trigger words writes them into the prompt
- * when the prompt is empty or still the last file's words — a guide file's
- * caption is its instruction, and typing it from the card is the one thing
- * nobody should have to do.
+ * Picking a file writes its caption into the prompt when the prompt is empty
+ * or still the last file's words — the published caption from the family's
+ * table first, the card's trigger words otherwise. A guide file's caption is
+ * its instruction, and typing it from the card is the one thing nobody should
+ * have to do.
  */
 export function openGuideLoraPopover(anchor, { target, commit }) {
   const pop = el("div", { class: "mmc-pop mmc-glora-pop" });
@@ -1259,6 +1260,8 @@ export function openGuideLoraPopover(anchor, { target, commit }) {
   let wordsOf = "";
 
   const wordsFor = async (name) => {
+    const known = guideLoraCaption(name, pieceFamily(target));
+    if (known) return known;
     try {
       const { loras } = await listLorasNamed([name]);
       return (loras?.[0]?.trained_words ?? []).join(", ");

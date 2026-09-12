@@ -305,9 +305,9 @@ both rank-64 files over Ref2VA, trained on ostris's ai-toolkit fork. Drop
 them in `models/loras`.
 
 The `guide LoRA` pill sits on the sampler row of the Creator and the
-Timeline, beside `DLSS 5`. Switch it on, pick the file, and the file's
-trigger caption is put in the prompt box for you where its card carries one;
-a style file wants the style written there instead. Every written pass is
+Timeline, beside `DLSS 5`. Switch it on, pick the file, and its caption is
+put in the prompt box for you — the sharpener's published one, or the trigger
+words on the file's card; a style file wants the style written there instead. Every written pass is
 then generated again from noise, the whole schedule, with itself encoded and
 pinned at frame 0 as one guide block, under the file. It runs at the size the
 pass was written, on the piece's own sampler row — under turbo, the turbo row
