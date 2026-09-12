@@ -1242,7 +1242,7 @@ export function guideLoraPill({ target, commit, onPickLook = null }) {
     class: `mmc-pill${block.on ? " accel-on" : ""}`,
     title,
     onclick: (event) => openGuideLoraPopover(event.currentTarget, { target, commit, onPickLook }),
-  }, [el("span", { text: label })]);
+  }, [el("span", { class: "mmc-pill-clip", text: label })]);
 }
 
 

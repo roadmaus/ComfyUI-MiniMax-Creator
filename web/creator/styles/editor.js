@@ -744,6 +744,11 @@ button.mmc-asset-owner:hover, button.mmc-asset-owner:focus-visible {
   color: var(--mmc-text); font-size: calc(13px * var(--mmc-type)); font-family: inherit; cursor: pointer;
   white-space: nowrap; transition: background .12s ease;
 }
+/* A pill that names something with a name of its own — a look off the atlas,
+   a guide file — is cut at a hand's width; the title carries the whole of it.
+   Without this a look's lead ("Claymation animation with thumbprint ridges
+   visible across every surface…") is a pill the width of the node. */
+.mmc-pill-clip { max-width: 26ch; overflow: hidden; text-overflow: ellipsis; }
 /* A pill for something this machine has not set up — the DLSS 5 refiner
    without its weights. Still pressable: the popover says what is missing. */
 .mmc-pill-unready { opacity: 0.6; }

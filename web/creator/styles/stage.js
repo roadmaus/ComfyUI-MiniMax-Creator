@@ -119,7 +119,7 @@ export const css = `
    the context for. */
 .mmc-stage-segment { font-weight: 500; }
 /* The readout swallows the pointer so the finished video's controls stay
-   reachable under it; its one real button opts back in. */
+   reachable under it; its real buttons (Gallery, Restyle) opt back in. */
 .mmc-stage-gallery {
   pointer-events: auto; cursor: pointer; font: inherit;
 }

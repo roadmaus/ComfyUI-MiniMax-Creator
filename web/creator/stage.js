@@ -724,7 +724,7 @@ export class Stage {
       // A look for this render: opens the library on the Style tab with this
       // frame in the wipe. Only where the owner has the pass to run it.
       if (this.onRestyle) left.push(el("button", {
-        class: "mmc-stage-chip",
+        class: "mmc-stage-chip mmc-stage-gallery",
         text: t("Restyle"),
         title: t("Pick a look from the style atlas and generate this render again in it."),
         onclick: () => this.onRestyle(),
