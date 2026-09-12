@@ -24,7 +24,7 @@ import { openTrim, trimLabel } from "./trim.js";
 import { editPicture, asPick, applyPick, cropLabel } from "./picture.js";
 import { PromptBox, focusEnd, openEditorSheet } from "./prompt.js";
 import { RefinePanel, refineButton, refine } from "./refine.js";
-import { openAspectPopover, openResolutionPopover, openChoicePopover, facesPill, motionPill, neuralPill, aspectGlyph,
+import { openAspectPopover, openResolutionPopover, openChoicePopover, facesPill, motionPill, neuralPill, guideLoraPill, aspectGlyph,
          resolutionPillText,
          PILL_GLYPH, pillSet, pillClass } from "./pills.js";
 import { blobIO, samplingBar, segmentSeedPill } from "./sampling.js";
@@ -1602,6 +1602,9 @@ export class CreatorEditor {
                      // node rendered. Read late — the pill is built long before
                      // there is a render, and the answer changes on every one.
                      picture: () => stageSource(this.stage?.result) }),
+        // The guide-LoRA pass, only where the family has it.
+        ...(S.canDo(this.piece, "guide_lora")
+          ? [guideLoraPill({ target: this.piece, commit: () => this.commit() })] : []),
         weightsPill({
           piece: this.piece,
           models: this.piece.models,

@@ -245,6 +245,27 @@ class Family:
     # the cache keys — it had.
     hands_latents = False
 
+    # Whether `emit_finish` is written for this family: a pass over every
+    # written pass on the reel, at the size it was written, before ReDetail and
+    # the DLSS refiner. H3's guide-LoRA pass. `finish_request` reads the piece's
+    # ask off the blob (None where there is none), `finish_routes` adds any
+    # weight slot the pass samples on to the routes the loaders are built from.
+    finishes = False
+
+    def finish_request(self, data, run):
+        """The piece's finishing-pass request, or None. `run` is `run_context`'s."""
+        return None
+
+    def finish_routes(self, where, finish):
+        """`where` with the slot the finishing pass samples on added, if any."""
+        return where
+
+    def emit_finish(self, graph, links, weights, sampling, acceleration, compiled,
+                    reel, finish, run, seed):
+        """The finishing pass over `reel`. -> the new reel link. Called only
+        where `finishes` is True and `finish_request` answered."""
+        raise NotImplementedError(f"{self.id}.emit_finish")
+
     def emit_seam_restore(self, graph, links, frames, payload, compiled, denoise,
                           weights, sampling, acceleration, seed):
         """The run a seam inherits, re-sampled before the next pass conditions

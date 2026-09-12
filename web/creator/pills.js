@@ -14,11 +14,12 @@ import { UPSCALE_MODES, DEFAULT_REFINE_DENOISE, MIN_REFINE_DENOISE, MAX_REFINE_D
          MIN_FACE_CANVAS, MAX_FACE_CANVAS,
          MIN_FACE_DENOISE, MAX_FACE_DENOISE,
          emptyNeural, NEURAL_DEFAULTS, NEURAL_RANGES,
-         neuralEstimateGb } from "./state.js";
+         neuralEstimateGb, emptyGuideLora, GUIDE_LORA_STRENGTH } from "./state.js";
 import { UPSCALERS, NEURAL } from "./manifest.js";
-import { neuralRail, neuralSwitch, savedProfiles, saveProfile, forgetProfile,
-         sameProfile, applyProfile, profileOf, startingBlock } from "./neural.js";
+import { neuralRail, neuralSwitch, neuralDial, neuralChoice, savedProfiles, saveProfile,
+         forgetProfile, sameProfile, applyProfile, profileOf, startingBlock } from "./neural.js";
 import { openLoupe } from "./loupe.js";
+import { listLoraNames, listLorasNamed } from "./api.js";
 
 /**
  * Closely related controls as one pill, divided by hairlines.
@@ -1192,6 +1193,183 @@ export function openNeuralPopover(anchor, { target, commit, still = false, geome
             }),
       ]),
     ]);
+  };
+
+  render();
+  pop.appendChild(body);
+  document.body.appendChild(pop);
+  placeNear(pop, anchor);
+  dismissable(pop);
+}
+
+
+/**
+ * The guide-LoRA pass, as a pill on the sampler row.
+ *
+ * A file trained with the source clip pinned as an aligned guide — a
+ * sharpener, a style transfer — run over every written pass at the size it
+ * was written, before ReDetail and the refiner. It sits with the refiner
+ * because it is the same kind of statement: a thing done to the render rather
+ * than a thing the piece is, and off reads as off. H3's alone; the caller
+ * gates on the capability.
+ *
+ * @param {object} spec
+ * @param {object} spec.target  a piece or timeline state, mutated in place
+ * @param {() => void} spec.commit
+ */
+export function guideLoraPill({ target, commit }) {
+  const block = target.guide_lora ?? emptyGuideLora();
+  const name = block.lora ? block.lora.split("/").pop().replace(/\.[^.]+$/, "") : "";
+  const title = block.on
+    ? t("The guide LoRA pass is on: every pass is generated again from noise with "
+      + "itself pinned as an aligned guide, under {name}. A second full generation "
+      + "per pass, at the same size.", { name: name || t("no file") })
+    : t("The guide LoRA pass is off. Switch it on to run a guide-trained file — a "
+      + "sharpener, a style transfer — over the finished passes.");
+  return el("button", {
+    class: `mmc-pill${block.on ? " accel-on" : ""}`,
+    title,
+    onclick: (event) => openGuideLoraPopover(event.currentTarget, { target, commit }),
+  }, [el("span", { text: block.on ? t("guide · {name}", { name: name || "?" }) : t("guide LoRA off") })]);
+}
+
+
+/**
+ * The pass's settings, as a panel: the switch, which file, how hard, what it
+ * is told, which checkpoint.
+ *
+ * The file is picked from a short search over `models/loras` rather than the
+ * LoRA manager: the manager edits a *stack*, and this is one file in one slot.
+ * Picking a file whose card carries trigger words writes them into the prompt
+ * when the prompt is empty or still the last file's words — a guide file's
+ * caption is its instruction, and typing it from the card is the one thing
+ * nobody should have to do.
+ */
+export function openGuideLoraPopover(anchor, { target, commit }) {
+  const pop = el("div", { class: "mmc-pop mmc-glora-pop" });
+  const body = el("div");
+  const cap = capabilityOf(target, "guide_lora") ?? {};
+  const range = { ...GUIDE_LORA_STRENGTH, ...(cap.strength ?? {}) };
+  const checkpoints = cap.checkpoints ?? [];
+  let names = null;       // every LoRA name, once listed
+  let query = "";
+  let searching = false;
+  // The words the current file put into the prompt, so the next pick may
+  // replace them but never a sentence the user wrote.
+  let wordsOf = "";
+
+  const wordsFor = async (name) => {
+    try {
+      const { loras } = await listLorasNamed([name]);
+      return (loras?.[0]?.trained_words ?? []).join(", ");
+    } catch { return ""; }
+  };
+
+  const pick = async (block, name) => {
+    block.lora = name;
+    searching = false;
+    query = "";
+    const words = await wordsFor(name);
+    if (words && (!block.prompt || block.prompt === wordsOf)) block.prompt = words;
+    wordsOf = words;
+    render();
+    commit();
+  };
+
+  const picker = (block) => {
+    const shortName = (name) => name.split("/").pop().replace(/\.[^.]+$/, "");
+    if (!searching) {
+      return el("div", { class: "mmc-glora-file" }, [
+        el("span", { class: "mmc-nr-label", text: t("file") }),
+        el("button", {
+          class: `mmc-glora-pick${block.lora ? "" : " empty"}`,
+          title: block.lora || t("Pick a guide-trained LoRA from models/loras"),
+          text: block.lora ? shortName(block.lora) : t("Pick a file…"),
+          onclick: async () => {
+            searching = true;
+            render();
+            if (names === null) {
+              try { names = await listLoraNames(); } catch { names = []; }
+              render();
+            }
+          },
+        }),
+      ]);
+    }
+    const needle = query.trim().toLowerCase();
+    const shown = (names ?? []).filter((name) => !needle || name.toLowerCase().includes(needle))
+                               .slice(0, 24);
+    const input = el("input", {
+      type: "text", class: "mmc-glora-search", placeholder: t("Search models/loras"),
+      value: query, spellcheck: "false",
+      oninput: (event) => { query = event.target.value; render(); },
+      onkeydown: (event) => {
+        event.stopPropagation();
+        if (event.key === "Escape") { searching = false; render(); }
+        if (event.key === "Enter" && shown.length === 1) pick(block, shown[0]);
+      },
+    });
+    return el("div", { class: "mmc-glora-file searching" }, [
+      input,
+      el("div", { class: "mmc-glora-list" }, names === null
+        ? [el("span", { class: "mmc-glora-none", text: t("Loading…") })]
+        : shown.length
+          ? shown.map((name) => el("button", {
+              class: `mmc-glora-row${name === block.lora ? " on" : ""}`,
+              title: name, text: shortName(name),
+              onclick: () => pick(block, name),
+            }))
+          : [el("span", { class: "mmc-glora-none", text: t("Nothing matches") })]),
+    ]);
+  };
+
+  const render = () => {
+    const block = target.guide_lora ?? (target.guide_lora = emptyGuideLora());
+    const rows = [
+      el("div", { class: "mmc-neural-head" }, [
+        el("span", { class: "mmc-pop-title", text: t("Guide LoRA pass") }),
+        neuralSwitch({
+          on: block.on, label: t("Guide LoRA pass"),
+          onChange: (next) => { block.on = next; render(); commit(); },
+        }),
+      ]),
+      el("p", { class: "mmc-neural-lead", text: block.on
+        ? t("Every written pass is generated again from noise with itself pinned as an "
+          + "aligned guide, under this file, at the size it was written. The soundtrack "
+          + "rides through untouched.")
+        : t("Off: the passes as written. Switch it on to run a guide-trained file — "
+          + "a sharpener, a style transfer — over the finished render.") }),
+    ];
+    if (block.on) {
+      rows.push(picker(block));
+      rows.push(neuralDial({
+        key: "strength", label: t("strength"), value: Number(block.strength), range,
+        note: "How hard the guide file is applied. 1 is the trainer's own unit.",
+        onChange: (next) => { block.strength = next; commit(); },
+      }));
+      rows.push(el("div", { class: "mmc-glora-prompt" }, [
+        el("span", { class: "mmc-nr-label", text: t("prompt") }),
+        el("textarea", {
+          class: "mmc-glora-text", rows: "3", spellcheck: "false",
+          placeholder: t("The file's trigger caption, or the style to move to"),
+          value: block.prompt,
+          oninput: (event) => { block.prompt = event.target.value; commit(); },
+          onkeydown: (event) => event.stopPropagation(),
+        }),
+      ]));
+      if (checkpoints.length > 1) {
+        rows.push(neuralChoice({
+          label: t("checkpoint"), value: block.checkpoint, options: checkpoints,
+          notes: cap.notes ?? {},
+          onChange: (next) => { block.checkpoint = next; render(); commit(); },
+        }));
+      }
+      rows.push(el("div", { class: "mmc-pop-note", text:
+        t("A second full generation per pass, on the piece's sampler row — under turbo, "
+          + "the turbo row with the distill on. Runs before ReDetail and the DLSS refiner.") }));
+    }
+    body.replaceChildren(...rows);
+    if (searching) body.querySelector(".mmc-glora-search")?.focus();
   };
 
   render();

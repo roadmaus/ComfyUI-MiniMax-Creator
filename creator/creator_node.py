@@ -59,7 +59,7 @@ from . import (accel, canvas, compile as compiler, guide as guides, job_node,
                redetailpass, sampling, settings, timeline, vdn)
 from .core import emit as loop
 from .families import registry
-from .families.h3 import declare as h3, facepass, hires, motionfix, seamrestore
+from .families.h3 import declare as h3, facepass, guidepass, hires, motionfix, seamrestore
 
 DEFAULT_DATA = json.dumps({
     "version": 2,
@@ -301,7 +301,11 @@ def _render(blob, seed, steps, cfg, sampler_name, scheduler,
         # The DLSS 5 refiner, off `data` like the guide and for the same reason:
         # a pass over the finished frames is a property of the piece as it
         # stands. Family-neutral, so it is read here beside the guide.
-        neural=neural.Request.of(data))
+        neural=neural.Request.of(data),
+        # The family's own finishing pass — H3's guide-LoRA pass — read off
+        # `data` beside the run it belongs to, since under VDN the run decides
+        # which files a stack may wear.
+        finish=family.finish_request(data, run))
     return loop.expanded(graph)
 
 
@@ -379,7 +383,7 @@ class MiniMaxCreatorExtension(ComfyExtension):
         return [MiniMaxH3Creator, MiniMaxH3Timeline, job_node.ContinuityJob,
                 *timeline.NODES, *registry.segment_nodes(),
                 *prestage.NODES, *hires.NODES, *facepass.NODES, *seamrestore.NODES,
-                *motionfix.NODES,
+                *motionfix.NODES, *guidepass.NODES,
                 *redetailpass.NODES, *neuralpass.NODES, *vdn.NODES]
 
 

@@ -227,7 +227,8 @@ def inherited_audio(graph, source, seconds):
 
 def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
          filename_prefix=None, cards=None, seeds=None,
-         whole_piece=True, run=None, upscaler=None, guide=None, neural=None):
+         whole_piece=True, run=None, upscaler=None, guide=None, neural=None,
+         finish=None):
     """-> the graph, which the caller finalizes. Nothing comes back out of it.
 
     `labels[i]` names payload i in any error raised about it — "Segment 2", or
@@ -262,6 +263,13 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
     payload asks for the pass. It belongs to no family — ReDetail re-renders an
     H3 pass through LTX 2.5's files — which is exactly why it arrives beside
     `weights` rather than inside it.
+
+    `finish` is the family's own finishing pass — H3's guide-LoRA pass
+    (`families/h3/guidelora.Request`) — or None, read off the blob by the
+    caller through `family.finish_request`. It runs over the written passes
+    at the size they were written, so it goes after the loop and before
+    ReDetail and the refiner: a re-detailed reel is another size, and the
+    refiner draws on whatever leaves last.
 
     `neural` is the piece's DLSS 5 refiner request (`creator/neural.Request`)
     or None, read off the blob by the caller the way `guide` is. Family-neutral
@@ -314,6 +322,9 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
     compiled = compile_all(family, payloads, labels)
     _refuse_mismatched_parts(payloads, compiled)
     where = family.routes(compiled, labels)
+    if finish is not None:
+        # The finishing pass may sample on a checkpoint no card routes to.
+        where = family.finish_routes(where, finish)
 
     # Whether each pass writes its own take the moment it exists, off the reel
     # node's pass output. Yes on any strip of more than one part — a take
@@ -324,8 +335,9 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
     # the save node keeps writing the takes from the reel it actually saved.
     redetailing = any(one is not None and one.redetail for one in compiled)
     refining = bool(neural)
+    finishing = finish is not None and family.finishes
     per_pass_takes = (bool(cards) and len(payloads) > 1
-                      and not redetailing and not refining)
+                      and not redetailing and not refining and not finishing)
 
     # The face pass's conditioning is a second compile of the same segment at
     # the crop canvas, and dropping the keyframes can land it on the other
@@ -578,6 +590,13 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
     # the canvas it is about to sample at. Every part is re-rendered or none is —
     # the muxer holds a reel's parts to one geometry, and `timeline_payloads`
     # has already refused a strip carrying footage this cannot re-render.
+    # The family's finishing pass, over the written reel. Before ReDetail and
+    # the refiner: it keeps the size the passes were written at, and what it
+    # hands on is what those two should work from. See `emit_finish`.
+    if finishing:
+        reel = family.emit_finish(graph, links, weights, sampling, acceleration,
+                                  compiled, reel, finish, run, seed_for(0))
+
     if redetailing:
         from .. import redetailpass
 

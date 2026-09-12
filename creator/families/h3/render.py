@@ -24,7 +24,7 @@ import comfy.sample
 from ... import (accel, canvas, compile as compiler, guide as guides, media,
                  models as core, raylight, sampling as sampling_mod, settings)
 from .. import base
-from . import declare, derope, models as slots
+from . import declare, derope, guidelora, models as slots
 
 # Whether this core can start a sampler with the noise switched off on an H3
 # audio+video latent. The lead-in's second sitting does exactly that — the noise
@@ -783,6 +783,38 @@ class H3(base.Family):
     restores_seams = True
     hands_latents = True
     fixes_motion = True
+    finishes = True
+
+    def finish_request(self, data, run):
+        request = guidelora.Request.of(data, run)
+        return request if request else None
+
+    def finish_routes(self, where, finish):
+        # The pass samples on the checkpoint the file was trained against,
+        # whatever the strip's cards route to; named here so the loader is
+        # built and `check` asks for the file before anything is queued.
+        out = dict(where)
+        out.setdefault(finish.checkpoint, "The guide LoRA pass")
+        return out
+
+    def emit_finish(self, graph, links, weights, sampling, acceleration, compiled,
+                    reel, finish, run, seed):
+        if raylight.enabled(weights):
+            raise ValueError(
+                "The guide LoRA pass samples on this side of the wire and the "
+                "Raylight backend loads the checkpoint inside Ray's workers. "
+                "Switch the pass off, or render on one GPU.")
+        from . import guidepass
+
+        # The stack goes on first, then the same three patches every sampler
+        # in this module runs behind — see `MiniMaxH3GuideModel` for why the
+        # order is the segment node's.
+        stacked = graph.node(
+            guidepass.MODEL_NODE, model=getattr(links, finish.checkpoint),
+            loras=json.dumps(finish.entries, sort_keys=True),
+            checkpoint=finish.checkpoint).out(0)
+        model = patched(graph, stacked, sampling, acceleration, weights)
+        return guidepass.emit(graph, model, links, sampling, reel, finish, seed)
 
     def emit_motion_fix(self, graph, links, payload, compiled, written, latent,
                         head, weights, sampling, acceleration, seed):

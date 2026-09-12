@@ -11,7 +11,7 @@ English keys the i18n dictionaries already carry.
 
 from ... import accel, canvas, compile, guide, models as core, sampling, settings
 from .. import manifest as m
-from . import declare, grammar, models as slots, refine, still
+from . import declare, grammar, guidelora, models as slots, refine, still
 
 
 def _widgets():
@@ -329,6 +329,22 @@ def manifest():
             # own pass (`motionfix.py`, planned by `derope.py`); a family
             # declaring nothing here draws no chip and its loop ignores the flag.
             "motion_fix": True,
+            # Whether a piece can be finished through a guide LoRA — a file
+            # trained to map one video to another with the source pinned as an
+            # aligned guide (`guidelora.py`, `guidepass.py`). The pill reads
+            # the checkpoints it may run on and the strength's stops here so
+            # the two sides clamp alike.
+            "guide_lora": {"checkpoints": m.value_list(guidelora.CHECKPOINTS),
+                           "default_checkpoint": guidelora.DEFAULT_CHECKPOINT,
+                           # What the pill says about each, translation keys
+                           # like any string written in source.
+                           "notes": {"ref2va": "What the published guide files were "
+                                               "trained against.",
+                                     "fl2va": "The plain checkpoint — the files' card "
+                                              "says it should work, less tested."},
+                           "strength": {"min": guidelora.MIN_STRENGTH,
+                                        "max": guidelora.MAX_STRENGTH,
+                                        "default": guidelora.DEFAULT_STRENGTH}},
             # Whether a shot can be shown a storyboard of the shots before it
             # — the pill on the bar and the chip on every seam. Read off the
             # declaration so the compiler and the frontend answer alike.

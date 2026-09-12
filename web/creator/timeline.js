@@ -24,7 +24,7 @@ import { openSettings } from "./settings.js";
 import { SoundLane } from "./soundlane.js";
 import { openTrim } from "./trim.js";
 import { openPicture, editPicture, asPick, cropLabel } from "./picture.js";
-import { openAspectPopover, openResolutionPopover, openChoicePopover, facesPill, neuralPill, stepperPill,
+import { openAspectPopover, openResolutionPopover, openChoicePopover, facesPill, neuralPill, guideLoraPill, stepperPill,
          aspectGlyph, resolutionPillText, PILL_GLYPH } from "./pills.js";
 import { refine, refineButton, chosenModel as refineModel } from "./refine.js";
 import { adopted, blobIO, samplingBar } from "./sampling.js";
@@ -4308,6 +4308,9 @@ export class TimelineBody {
                      // TimelineBody has no geometry() method; the modal does.
                      geometry: () => timelineGeometry(this.timeline),
                      picture: () => stageSource(this.stage?.result) }),
+        // The guide-LoRA pass, only where the family has it.
+        ...(S.canDo(this.timeline, "guide_lora")
+          ? [guideLoraPill({ target: this.timeline, commit: () => this.commit() })] : []),
         weightsPill({
           piece: this.timeline,
           models: this.timeline.models,

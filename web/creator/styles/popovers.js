@@ -279,6 +279,42 @@ export const css = `
 }
 .mmc-neural-pop .mmc-pop-note { padding: 9px 0 0; margin: 0; }
 
+/* The guide-LoRA pass's popover: the refiner's column — the same head, lead,
+   dial and note — with a file picker and a prompt box between them. The picker
+   is a search over one folder rather than the LoRA manager, because this is
+   one file in one slot and not a stack. */
+.mmc-glora-pop { width: 296px; padding: 10px 12px 12px; display: flex; flex-direction: column; }
+.mmc-glora-pop > div { display: flex; flex-direction: column; gap: 11px; }
+.mmc-glora-pop .mmc-pop-title { padding: 0; color: var(--mmc-strong); font-weight: 600; }
+.mmc-glora-pop .mmc-pop-note { padding: 9px 0 0; margin: 0; }
+.mmc-glora-file { display: flex; align-items: center; gap: 10px; }
+.mmc-glora-file.searching { flex-direction: column; align-items: stretch; gap: 6px; }
+.mmc-glora-pick {
+  flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; padding: 4px 9px; border-radius: 6px; cursor: pointer;
+  font-family: inherit; background: var(--mmc-wash); border: 1px solid var(--mmc-line);
+  color: var(--mmc-text); font-size: calc(11px * var(--mmc-type));
+}
+.mmc-glora-pick.empty { color: var(--mmc-dim); border-style: dashed; }
+.mmc-glora-pick:hover { border-color: var(--mmc-line-2); }
+.mmc-glora-search, .mmc-glora-text {
+  width: 100%; box-sizing: border-box; padding: 5px 8px; border-radius: 6px;
+  font-family: inherit; font-size: calc(11px * var(--mmc-type)); color: var(--mmc-text);
+  background: var(--mmc-wash); border: 1px solid var(--mmc-line); outline: none;
+}
+.mmc-glora-search:focus, .mmc-glora-text:focus { border-color: var(--mmc-accent); }
+.mmc-glora-text { resize: vertical; line-height: 1.4; }
+.mmc-glora-list { display: flex; flex-direction: column; max-height: 190px; overflow-y: auto; }
+.mmc-glora-row {
+  text-align: left; padding: 4px 8px; border: 0; background: none; cursor: pointer;
+  font-family: inherit; color: var(--mmc-text); font-size: calc(11px * var(--mmc-type));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 4px;
+}
+.mmc-glora-row:hover { background: var(--mmc-wash); }
+.mmc-glora-row.on { color: var(--mmc-accent); }
+.mmc-glora-none { padding: 4px 8px; color: var(--mmc-dim); font-size: calc(11px * var(--mmc-type)); }
+.mmc-glora-prompt { display: flex; flex-direction: column; gap: 5px; }
+
 /* The shelf. A row of what has been kept, and the press that keeps one more. */
 .mmc-neural-shelf {
   display: flex; align-items: baseline; gap: 10px;

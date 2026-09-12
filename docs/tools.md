@@ -292,3 +292,38 @@ remembered per file.
 LTX 2.5 only: a second pass over a finished render through Lightricks' x2
 IC-LoRA. It re-renders rather than resolves, inventing detail as it goes,
 which is why it lives in a render's own settings and not on the upscale bench.
+
+## Guide LoRA pass
+
+MiniMax H3 only: a second pass over a finished render through a **guide
+LoRA**, a file trained with the source clip pinned as an *aligned guide* so
+the model is handed a pixel-for-pixel correspondence rather than a
+description. The two published so far are
+[Alissonerdx's](https://huggingface.co/Alissonerdx/Minimax-H3-ComfyUI)
+`minimax_h3_lms` ("a little more sharpness") and `minimax_h3_style_transfer`,
+both rank-64 files over Ref2VA, trained on ostris's ai-toolkit fork. Drop
+them in `models/loras`.
+
+The `guide LoRA` pill sits on the sampler row of the Creator and the
+Timeline, beside `DLSS 5`. Switch it on, pick the file, and the file's
+trigger caption is put in the prompt box for you where its card carries one;
+a style file wants the style written there instead. Every written pass is
+then generated again from noise, the whole schedule, with itself encoded and
+pinned at frame 0 as one guide block, under the file. It runs at the size the
+pass was written, on the piece's own sampler row — under turbo, the turbo row
+with the distill worn beside the guide file, which is the published rig — and
+on the checkpoint the file was trained against whatever the cards route to.
+The soundtrack rides through untouched.
+
+It runs over the whole reel after the last pass and before ReDetail and the
+neural refiner, never inline at a seam: a sharpened tail handed to the next
+shot as its anchor is a ratchet, the same one the DLSS refiner was measured
+to have. Each part is generated on its own, so across a feathered seam two
+generations meet; the guide is near-clean in training and the output is
+locked to it, so the join is expected to hold. That is unmeasured on a real
+render as of 2026-09-12, as is the pass at canvases past the 0.59 MP the
+files' examples were made at.
+
+Cost is a second full generation per pass. Nothing else is loaded: the
+checkpoint, the encoder and the VAE are the render's own.
+

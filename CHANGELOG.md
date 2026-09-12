@@ -6,6 +6,35 @@ exactly as it was written, wall of text and all.
 
 ## Unreleased
 
+**Guide LoRA pass: a pill on H3's sampler row that finishes a render through
+a file trained to map one video to another.** Alissonerdx's `minimax_h3_lms`
+sharpener and `minimax_h3_style_transfer` are rank-64 LoRAs over Ref2VA
+trained with the source clip packed into the sequence as an *aligned guide* —
+VAE-encoded, pinned at frame 0 of the target's own timeline at the target's
+own canvas, held near-clean while the target is noised — so the file learns
+a pixel-level map rather than a paraphrase. That arrangement is the blended
+seam's already (`encode._context_keyframes` pins the inherited run the same
+way), so the pass is that call with the run being the whole pass: after the
+last pass is written, each generated part is read back, encoded, pinned as
+one guide block against an empty AV latent of its own size and length, and
+generated again from noise the whole schedule under the file, on the
+checkpoint the file was trained against whatever the cards route to. The
+stack it wears is the piece's turbo distill (as it sits in the piece's
+stack) and the guide file, nothing else; the row is the piece's own, which
+under turbo is the published rig. The soundtrack rides through untouched
+(`spill.rewrite`), a seam-trimmed pass is padded up to the 17k+5 grid with
+its own last frame and trimmed back after decode, and the pass runs before
+ReDetail and the DLSS refiner and never inline at a seam — a sharpened
+anchor is the ratchet the refiner was measured to have. The pill picks the
+file from `models/loras` and puts its trigger caption in the prompt; the
+block is `guide_lora` on the piece and the timeline, absent while off, so
+every blob that never asked round-trips as it did. `families/h3/guidelora.py`
+is the pure half (request, stack, grid) and `guidepass.py` the nodes; the
+family contract grows `finishes` / `finish_request` / `finish_routes` /
+`emit_finish` so a second family can hang its own finishing pass on the
+same hook. Unmeasured on a real render: the feathered join between two
+independently finished parts, and canvases past the files' 0.59 MP.
+
 **Motion fix: a switch on the card that slows a shot down where it moves too
 fast for the model, draws it again and puts it back on the clock (#76).** H3
 smears bursty motion — a flip, a sword arc, a whip-fast turn — because one

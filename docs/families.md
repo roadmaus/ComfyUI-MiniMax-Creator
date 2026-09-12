@@ -39,6 +39,9 @@ Video with synchronized sound, and stills on the pre-stage.
   in [the-node.md](the-node.md#spoken-lines).
 - **Turbo** is a distillation LoRA (in the same repo as the weights), driven
   by the turbo pill at 4 to 8 steps.
+- **A guide LoRA pass** finishes a render through a file trained to map one
+  video to another — a sharpener, a style transfer — with each pass pinned as
+  its own aligned guide (see [tools.md](tools.md#guide-lora-pass)).
 
 ## LTX 2.5
 
