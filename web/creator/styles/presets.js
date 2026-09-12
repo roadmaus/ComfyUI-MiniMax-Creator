@@ -285,6 +285,60 @@ export const css = `
 }
 .mmc-style-shots figure[data-chosen] figcaption { color: var(--mmc-text); }
 
+/* The restyle picker's inspector. The wipe is the one loud thing: the render's
+   frame under the look's, the look clipped to the right of a seam that drags.
+   Under it the file's sentence as chips, the strength dial the refiner draws,
+   and the library's own Apply button saying what it does here. */
+.mmc-restyle-wipe {
+  position: relative; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden;
+  background: var(--mmc-media-bg); --seam: 50%;
+}
+.mmc-restyle-wipe img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mmc-restyle-yours ~ .mmc-restyle-look { clip-path: inset(0 0 0 var(--seam)); }
+.mmc-restyle-seam { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: ew-resize; }
+.mmc-restyle-line {
+  position: absolute; top: 0; bottom: 0; left: var(--seam); width: 1px; pointer-events: none;
+  background: rgba(255, 255, 255, .85); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5);
+}
+.mmc-restyle-knob {
+  position: absolute; top: 50%; left: var(--seam); width: 20px; height: 20px; pointer-events: none;
+  transform: translate(-50%, -50%); border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .6);
+}
+.mmc-restyle-seam:focus-visible ~ .mmc-restyle-line { background: var(--mmc-accent); }
+.mmc-restyle-tag {
+  position: absolute; bottom: 7px; left: 7px; pointer-events: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: calc(10px * var(--mmc-type));
+  color: #fff; background: rgba(0, 0, 0, .55); padding: 2px 6px; border-radius: 4px;
+}
+.mmc-restyle-tag.end { left: auto; right: 7px; }
+.mmc-restyle-says { display: flex; flex-direction: column; gap: 7px; padding-top: 10px; border-top: 1px solid var(--mmc-line); }
+.mmc-restyle-k { font-size: calc(11.5px * var(--mmc-type)); color: var(--mmc-faint); }
+.mmc-restyle-fixed { font-size: calc(12.5px * var(--mmc-type)); color: var(--mmc-dim); line-height: 1.4; }
+.mmc-restyle-fixed code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: calc(11.5px * var(--mmc-type)); color: var(--mmc-faint);
+}
+.mmc-restyle-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mmc-restyle-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: calc(12px * var(--mmc-type));
+  color: var(--mmc-text); background: var(--mmc-wash); border: 1px solid var(--mmc-line);
+  border-radius: 999px; padding: 3px 5px 3px 10px;
+}
+.mmc-restyle-chip.marked { border-color: color-mix(in srgb, var(--mmc-accent) 60%, transparent); }
+.mmc-restyle-x {
+  width: 16px; height: 16px; border: 0; border-radius: 50%; background: none; cursor: pointer;
+  color: var(--mmc-faint); font: inherit; font-size: calc(12px * var(--mmc-type)); display: grid; place-items: center; padding: 0;
+}
+.mmc-restyle-x:hover { background: var(--mmc-wash-2); color: var(--mmc-strong); }
+.mmc-restyle-chip.marked .mmc-restyle-x { color: var(--mmc-accent); }
+.mmc-restyle-add {
+  width: 96px; font: inherit; font-size: calc(12px * var(--mmc-type)); color: var(--mmc-text);
+  background: none; border: 1px dashed var(--mmc-line-2); border-radius: 999px; padding: 3px 10px; outline: none;
+}
+.mmc-restyle-add:focus { border-color: var(--mmc-accent); }
+.mmc-restyle-add::placeholder { color: var(--mmc-dim); }
+.mmc-restyle-hint { font-size: calc(11.5px * var(--mmc-type)); color: var(--mmc-faint); line-height: 1.45; }
+.mmc-restyle-dial { padding-top: 10px; border-top: 1px solid var(--mmc-line); }
+
 /* The frame, offered as plainly as the phrase. A style is half a sentence and
    half a picture, and for a medium nobody has a folder of the picture is the
    only half you can get anywhere else. */

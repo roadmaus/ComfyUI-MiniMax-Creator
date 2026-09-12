@@ -8,7 +8,8 @@
 // with the node's, because there is only one editor.
 
 import { api } from "../../../scripts/api.js";
-import { compiledPrompt, probe, viewUrl, primeSettings, buildPlate } from "./api.js";
+import { compiledPrompt, probe, viewUrl, primeSettings, buildPlate, stillUrl } from "./api.js";
+import { openRestyle } from "./restyle.js";
 import { CastShelf } from "./cast.js";
 import { keepAsMod } from "./refmod.js";
 import { clearButton } from "./clear.js";
@@ -3209,6 +3210,8 @@ export class TimelineBody {
       (promptId, snapshot) => this.rememberQueued(promptId, snapshot));
     this.stage = new Stage({
       nodeId,
+      // A look for the finished render, where the family has the pass.
+      onRestyle: S.canDo(this.timeline, "guide_lora") ? () => this.restyle() : null,
       // Which generation the queue is on, said over the preview: the strip runs
       // for minutes and a bare step count says nothing about where in the
       // piece the sampler is. Counted in passes, because that is what the
@@ -3510,6 +3513,18 @@ export class TimelineBody {
     this.timeline.segments.push(S.continuingSegment(this.timeline));
     this.commit();
     this.open({ edit: this.timeline.segments.length - 1 });
+  }
+
+  /** The library as a look picker, this render's frame in the wipe; a pick
+   *  writes the guide-LoRA block and queues the node — see `restyle.js`. */
+  restyle({ queue = true } = {}) {
+    const source = stageSource(this.stage?.result);
+    return openRestyle({
+      target: this.timeline, family: S.pieceFamily(this.timeline),
+      frame: source ? stillUrl(source) : null,
+      commit: () => this.commit(),
+      nodeId: queue ? this.nodeId : null,
+    }).then(() => this.render());
   }
 
   commit() {
@@ -4310,7 +4325,8 @@ export class TimelineBody {
                      picture: () => stageSource(this.stage?.result) }),
         // The guide-LoRA pass, only where the family has it.
         ...(S.canDo(this.timeline, "guide_lora")
-          ? [guideLoraPill({ target: this.timeline, commit: () => this.commit() })] : []),
+          ? [guideLoraPill({ target: this.timeline, commit: () => this.commit(),
+                             onPickLook: () => this.restyle({ queue: false }) })] : []),
         weightsPill({
           piece: this.timeline,
           models: this.timeline.models,

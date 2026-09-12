@@ -1498,6 +1498,12 @@ export const GUIDE_LORA_DEFAULT_CHECKPOINT = "ref2va";
 export const emptyGuideLora = () => ({
   on: false, lora: "", strength: GUIDE_LORA_STRENGTH.default, prompt: "",
   checkpoint: GUIDE_LORA_DEFAULT_CHECKPOINT,
+  // A reference picture beside the guide — a look's frame, `atlas:000123` —
+  // presented as <Picture 1>. What a restyle sets; a sharpen leaves it empty.
+  picture: "",
+  // What the look is called, for the pill. The picture is the fact; this is
+  // its name, and a hand-edited block that names none reads as the picture.
+  look: "",
 });
 
 /** Whatever was in the blob, clamped onto `guidelora.py`'s ranges. */
@@ -1511,6 +1517,8 @@ export function parseGuideLora(raw, family = DEFAULT_VIDEO_FAMILY) {
     ? Math.min(GUIDE_LORA_STRENGTH.max, Math.max(GUIDE_LORA_STRENGTH.min, strength))
     : GUIDE_LORA_STRENGTH.default;
   if (typeof given.prompt === "string") block.prompt = given.prompt.trim();
+  if (typeof given.picture === "string") block.picture = given.picture.trim();
+  if (typeof given.look === "string") block.look = given.look.trim();
   const allowed = videoFamily(family).capabilities?.guide_lora?.checkpoints
     ?? [GUIDE_LORA_DEFAULT_CHECKPOINT];
   block.checkpoint = allowed.includes(given.checkpoint)
@@ -1529,8 +1537,27 @@ export function guideLoraCaption(name, family = DEFAULT_VIDEO_FAMILY) {
 /** Absent while it is off, so every blob that never asked for one is unchanged. */
 export const serializeGuideLora = (block) => (block?.on
   ? { guide_lora: { on: true, lora: block.lora, strength: block.strength,
-                    prompt: block.prompt, checkpoint: block.checkpoint } }
+                    prompt: block.prompt, checkpoint: block.checkpoint,
+                    picture: block.picture, look: block.look } }
   : {});
+
+/** The style file's caption grammar, off the family's table: `{match, prefix,
+ *  picture_form}`. Mirrors `guidelora.STYLE`; null where the family has none. */
+export const guideLoraStyle = (family = DEFAULT_VIDEO_FAMILY) =>
+  videoFamily(family).capabilities?.guide_lora?.style ?? null;
+
+/** The sentence a restyle tells the file: the trigger, the picture form, then
+ *  the attributes — lower-case, comma-separated, one full stop. */
+export function restyleCaption(attributes, family = DEFAULT_VIDEO_FAMILY) {
+  const style = guideLoraStyle(family);
+  if (!style) return "";
+  const list = attributes.map((word) => String(word).trim().toLowerCase()).filter(Boolean);
+  return `${style.prefix} ${style.picture_form} ${list.join(", ")}.`;
+}
+
+/** Whether a guide-LoRA block is a restyle: it carries a picture. The pill
+ *  reads its label off this. */
+export const isRestyle = (block) => Boolean(block?.on && block.picture);
 
 export const emptyFace = () => ({
   on: false, canvas: DEFAULT_FACE_CANVAS, denoise: DEFAULT_FACE_DENOISE,

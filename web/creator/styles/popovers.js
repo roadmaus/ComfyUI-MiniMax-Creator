@@ -314,6 +314,8 @@ export const css = `
 .mmc-glora-row.on { color: var(--mmc-accent); }
 .mmc-glora-none { padding: 4px 8px; color: var(--mmc-dim); font-size: calc(11px * var(--mmc-type)); }
 .mmc-glora-prompt { display: flex; flex-direction: column; gap: 5px; }
+.mmc-glora-look { display: flex; align-items: baseline; gap: 10px; font-size: calc(12px * var(--mmc-type)); }
+.mmc-glora-lookname { color: var(--mmc-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The shelf. A row of what has been kept, and the press that keeps one more. */
 .mmc-neural-shelf {

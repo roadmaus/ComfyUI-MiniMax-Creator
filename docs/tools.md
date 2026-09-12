@@ -327,3 +327,19 @@ files' examples were made at.
 Cost is a second full generation per pass. Nothing else is loaded: the
 checkpoint, the encoder and the VAE are the render's own.
 
+### Restyle
+
+The style file is the same pass with a picture. Press **Restyle** on a
+finished render (the chip beside Gallery), or *Pick a look from the style
+atlas* in the pill's popover: the library opens on the Style tab as a picker,
+with your render's own frame on the left of a wipe and every look you press
+on the right. Under it is what the file is told, in the grammar it was
+trained on: the trigger, "Re-render this video in the style of the picture:",
+then the look's descriptor cut into three to five attributes as chips. Strike
+one, add one; a chip that names a studio or a franchise is marked, because a
+name there makes the model stop looking at the picture. **Restyle this
+render** writes the style file, the look's frame as the picture and the
+caption onto the pass and queues the node. The written passes are cached, so
+only the pass samples. The style file is found by its name under
+`models/loras`; without one the button says where to get it.
+

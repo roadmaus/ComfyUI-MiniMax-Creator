@@ -53,7 +53,7 @@ import latent_preview
 import node_helpers
 from comfy_api.latest import io
 
-from ... import lora, spill
+from ... import lora, media, spill
 from ...timeline import REEL_TYPE
 from . import guidelora
 
@@ -120,6 +120,18 @@ def _guide(frames, length):
     return out
 
 
+def _reference(image):
+    """A reference picture at the reference pipeline's own size: down-only to
+    the 2048 short edge on the /32 grid, the `max` setting of a cast look —
+    the same arithmetic as `encode.encode_image`, for the same file."""
+    from comfy_extras.nodes_minimax_h3 import CANVAS_MULTIPLE, REF_IMAGE_SHORT_EDGE, _resize
+
+    height, width = int(image.shape[1]), int(image.shape[2])
+    scale = min(1.0, REF_IMAGE_SHORT_EDGE / min(width, height))
+    snap = lambda value: max(CANVAS_MULTIPLE, round(value / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+    return _resize(image, snap(width * scale), snap(height * scale), "disabled")
+
+
 def _blocks(decoded, count):
     """The re-rendered pass, a chunk at a time, trimmed to the length that went in."""
     for start in range(0, count, CHUNK):
@@ -152,15 +164,17 @@ class MiniMaxH3GuidePass(io.ComfyNode):
                 io.Float.Input("cfg", default=1.0, min=0.0, max=100.0, step=0.1),
                 io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS),
                 io.Combo.Input("scheduler", options=comfy.samplers.KSampler.SCHEDULERS),
+                io.String.Input("picture", default="", optional=True,
+                    tooltip="A reference picture presented as <Picture 1> beside the "
+                            "guide — a look's frame (atlas:000123) or a file under "
+                            "input/. The style file reads it."),
             ],
             outputs=[io.Custom(REEL_TYPE).Output(display_name="reel")],
         )
 
     @classmethod
     def execute(cls, model, clip, vae, reel, prompt, seed, steps, cfg, sampler_name,
-                scheduler) -> io.NodeOutput:
-        import nodes
-
+                scheduler, picture="") -> io.NodeOutput:
         parts = list(reel or [])
         passes = [index for index, part in enumerate(parts) if "pass" in part]
         if not passes:
@@ -172,9 +186,24 @@ class MiniMaxH3GuidePass(io.ComfyNode):
                                  "generated on it — there is nothing to re-render.")
 
         # The caption, once: the guide is what differs between the parts, and
-        # the text is the same sentence over every one of them.
-        tokens = clip.tokenize(prompt)
+        # the text is the same sentence over every one of them. So is the
+        # picture, where there is one — a reference block the way `encode.py`
+        # builds a Ref2VA reference, presented to the tokenizer as <Picture 1>
+        # and laid out in front of the target, beside the guide pinned on it.
+        items, blocks = [], []
+        if str(picture or "").strip():
+            resized = _reference(media.load_image(picture.strip()))
+            items.append({"type": "image", "data": resized})
+            blocks.append({"kind": "image",
+                           "latent_h": int(resized.shape[1]) // 16,
+                           "latent_w": int(resized.shape[2]) // 16,
+                           "latent": vae.encode(resized)})
+        tokens = clip.tokenize(prompt, minimax_ref_items=items) if items \
+            else clip.tokenize(prompt)
         conditioning = clip.encode_from_tokens_scheduled(tokens)
+        if blocks:
+            conditioning = node_helpers.conditioning_set_values(
+                conditioning, {"minimax_refs": blocks})
 
         out = list(parts)
         for position, index in enumerate(passes):
@@ -259,10 +288,17 @@ def emit(graph, model, links, sampling, reel, request, seed):
     the way the piece samples, which is the honest reading of "finish this
     piece the way it was made".
     """
+    inputs = {}
+    if request.picture:
+        # Only when there is one: an input the graph does not write is an
+        # input the node's cache key does not carry, so a sharpen keeps the
+        # key it had before pictures existed.
+        inputs["picture"] = request.picture
     return graph.node(
         PASS_NODE, model=model, clip=links.clip, vae=links.vae, reel=reel,
         prompt=request.prompt, seed=seed, steps=sampling.steps, cfg=sampling.cfg,
-        sampler_name=sampling.sampler_name, scheduler=sampling.scheduler).out(0)
+        sampler_name=sampling.sampler_name, scheduler=sampling.scheduler,
+        **inputs).out(0)
 
 
 NODES = [MiniMaxH3GuideModel, MiniMaxH3GuidePass]

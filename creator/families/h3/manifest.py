@@ -342,6 +342,7 @@ def manifest():
                            # `guidelora.CAPTIONS`, the pill's copy of the
                            # node's own table.
                            "captions": [dict(entry) for entry in guidelora.CAPTIONS],
+                           "style": dict(guidelora.STYLE),
                            "notes": {"ref2va": "What the published guide files were "
                                                "trained against.",
                                      "fl2va": "The plain checkpoint — the files' card "

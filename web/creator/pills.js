@@ -14,7 +14,8 @@ import { UPSCALE_MODES, DEFAULT_REFINE_DENOISE, MIN_REFINE_DENOISE, MAX_REFINE_D
          MIN_FACE_CANVAS, MAX_FACE_CANVAS,
          MIN_FACE_DENOISE, MAX_FACE_DENOISE,
          emptyNeural, NEURAL_DEFAULTS, NEURAL_RANGES,
-         neuralEstimateGb, emptyGuideLora, GUIDE_LORA_STRENGTH, guideLoraCaption } from "./state.js";
+         neuralEstimateGb, emptyGuideLora, GUIDE_LORA_STRENGTH, guideLoraCaption,
+         isRestyle, guideLoraStyle } from "./state.js";
 import { UPSCALERS, NEURAL } from "./manifest.js";
 import { neuralRail, neuralSwitch, neuralDial, neuralChoice, savedProfiles, saveProfile,
          forgetProfile, sameProfile, applyProfile, profileOf, startingBlock } from "./neural.js";
@@ -1216,21 +1217,32 @@ export function openNeuralPopover(anchor, { target, commit, still = false, geome
  * @param {object} spec
  * @param {object} spec.target  a piece or timeline state, mutated in place
  * @param {() => void} spec.commit
+ * @param {() => Promise<void>} [spec.onPickLook]  open the library as a look
+ *   picker — a restyle: the style file, the look's frame and the caption
+ *   written onto the block. Absent where the family has no style grammar.
  */
-export function guideLoraPill({ target, commit }) {
+export function guideLoraPill({ target, commit, onPickLook = null }) {
   const block = target.guide_lora ?? emptyGuideLora();
   const name = block.lora ? block.lora.split("/").pop().replace(/\.[^.]+$/, "") : "";
-  const title = block.on
-    ? t("The guide LoRA pass is on: every pass is generated again from noise with "
-      + "itself pinned as an aligned guide, under {name}. A second full generation "
-      + "per pass, at the same size.", { name: name || t("no file") })
-    : t("The guide LoRA pass is off. Switch it on to run a guide-trained file — a "
-      + "sharpener, a style transfer — over the finished passes.");
+  const restyling = isRestyle(block);
+  const title = restyling
+    ? t("Restyling: every pass is generated again in the look of {look}, with its "
+      + "frame as the picture. A second full generation per pass, at the same size.",
+        { look: block.look || block.picture })
+    : block.on
+      ? t("The guide LoRA pass is on: every pass is generated again from noise with "
+        + "itself pinned as an aligned guide, under {name}. A second full generation "
+        + "per pass, at the same size.", { name: name || t("no file") })
+      : t("The guide LoRA pass is off. Switch it on to run a guide-trained file — a "
+        + "sharpener, a style transfer — over the finished passes.");
+  const label = restyling
+    ? t("restyle · {look}", { look: block.look || block.picture })
+    : block.on ? t("guide · {name}", { name: name || "?" }) : t("guide LoRA off");
   return el("button", {
     class: `mmc-pill${block.on ? " accel-on" : ""}`,
     title,
-    onclick: (event) => openGuideLoraPopover(event.currentTarget, { target, commit }),
-  }, [el("span", { text: block.on ? t("guide · {name}", { name: name || "?" }) : t("guide LoRA off") })]);
+    onclick: (event) => openGuideLoraPopover(event.currentTarget, { target, commit, onPickLook }),
+  }, [el("span", { text: label })]);
 }
 
 
@@ -1246,7 +1258,7 @@ export function guideLoraPill({ target, commit }) {
  * its instruction, and typing it from the card is the one thing nobody should
  * have to do.
  */
-export function openGuideLoraPopover(anchor, { target, commit }) {
+export function openGuideLoraPopover(anchor, { target, commit, onPickLook = null }) {
   const pop = el("div", { class: "mmc-pop mmc-glora-pop" });
   const body = el("div");
   const cap = capabilityOf(target, "guide_lora") ?? {};
@@ -1270,6 +1282,10 @@ export function openGuideLoraPopover(anchor, { target, commit }) {
 
   const pick = async (block, name) => {
     block.lora = name;
+    // A file picked by hand is a sharpen, or a style named in words: the look
+    // a restyle chose no longer describes what this block does.
+    block.picture = "";
+    block.look = "";
     searching = false;
     query = "";
     const words = await wordsFor(name);
@@ -1345,6 +1361,22 @@ export function openGuideLoraPopover(anchor, { target, commit }) {
     ];
     if (block.on) {
       rows.push(picker(block));
+      if (isRestyle(block)) {
+        rows.push(el("div", { class: "mmc-glora-look" }, [
+          el("span", { class: "mmc-nr-label", text: t("look") }),
+          el("span", { class: "mmc-glora-lookname", text: block.look || block.picture }),
+        ]));
+      }
+      if (onPickLook && guideLoraStyle(pieceFamily(target))) {
+        // The other way in: a look from the atlas, which sets the file, the
+        // picture and the caption at once. The library closes on the pick
+        // and this popover is stale by then, so it closes too.
+        rows.push(el("button", {
+          class: "mmc-glora-pick",
+          text: isRestyle(block) ? t("Pick another look…") : t("Pick a look from the style atlas…"),
+          onclick: () => { pop.remove(); onPickLook(); },
+        }));
+      }
       rows.push(neuralDial({
         key: "strength", label: t("strength"), value: Number(block.strength), range,
         note: "How hard the guide file is applied. 1 is the trainer's own unit.",

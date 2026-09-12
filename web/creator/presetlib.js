@@ -42,7 +42,10 @@ import { atlasRef } from "./presets/atlasref.js";
 import { openPicker } from "./picker.js";
 import { downloadMod, openMenu, noteField, sizeRows, triggerField, MARKER_LABEL, MARKER_NOTE,
          ROLES, TAKES_NOTE } from "./cast.js";
-import { SUBJECT_TAKES, seedFeatures, showSeconds, splitTriggers, tagIndex } from "./state.js";
+import { SUBJECT_TAKES, seedFeatures, showSeconds, splitTriggers, tagIndex,
+         GUIDE_LORA_STRENGTH, guideLoraStyle } from "./state.js";
+import { neuralDial } from "./neural.js";
+import { attributeWarning, styleAttributes } from "./presets/stylelib.js";
 import { BUILTIN } from "./presets/builtin.js";
 import * as P from "./presets.js";
 
@@ -67,6 +70,12 @@ const PAGE_SIZE = 60;
  *   not the piece the roster would be applied to.
  * @param {string} [options.reveal]  a mod's path (`refmod:cast/anna`) to open
  *   the Cast tab's Saved references panel on — a card's "Show in library".
+ * @param {object} [options.restyle]  open the Style tab as a picker for the
+ *   guide-LoRA pass: `{frame, family, file, onRestyle}`. `frame` is a URL of
+ *   the render's own frame, held on the left of a wipe while looks are
+ *   pressed; `file` the style file's name under models/loras, or "" when none
+ *   is installed; `onRestyle({row, clip, attributes, strength})` is called
+ *   with the pick and the window closes on it.
  * @returns {Promise<void>}
  */
 export function openPresetLibrary(options) {
@@ -152,9 +161,18 @@ export function styleCastMember(row, index = 0) {
 }
 
 class PresetLibrary {
-  constructor({ target = null, scope = null, reveal = null }, resolve) {
+  constructor({ target = null, scope = null, reveal = null, restyle = null }, resolve) {
     this.target = target;
     this.resolve = resolve;
+    // The Style tab as a picker for the guide-LoRA pass — see `openPresetLibrary`.
+    // The attributes are the selected look's until somebody edits them, and go
+    // back to the look's when another look is pressed; the strength and the
+    // wipe's seam outlive a selection, because they are about the render.
+    this.restyle = restyle;
+    this.attributes = null;
+    this.attributesOf = null;
+    this.strength = GUIDE_LORA_STRENGTH.default;
+    this.seam = 50;
     // The Cast tab's other half: every RefMod on the machine, in the column the
     // inspector uses elsewhere. `reveal` is the one to scroll to and light on
     // arrival; `modArmed` is the one whose Delete has been pressed once.
@@ -170,7 +188,7 @@ class PresetLibrary {
     // came for — unless the caller asked for a tab by name, which is what a
     // "From the library" button on a shelf is doing. The tabs are still there to
     // browse the rest.
-    this.scope = scope ?? target?.scope ?? "piece";
+    this.scope = restyle ? "style" : (scope ?? target?.scope ?? "piece");
     this.query = "";
     this.shelf = SHELF_ALL;
     this.rows = [];
@@ -1878,9 +1896,11 @@ class PresetLibrary {
     if (this.scope === "cast") { this.renderModPanel(); return; }
     if (!row) {
       this.inspector.replaceChildren(el("div", { class: "mmc-preset-insp-hint", text:
-        this.target
-          ? t("Pick a preset to see what is in it and choose what to apply.")
-          : t("Pick a preset to see what is in it.") }));
+        this.restyle
+          ? t("Pick a look to see it against your own frame.")
+          : this.target
+            ? t("Pick a preset to see what is in it and choose what to apply.")
+            : t("Pick a preset to see what is in it.") }));
       return;
     }
     if (!this.body) {
@@ -1961,6 +1981,7 @@ class PresetLibrary {
    * there is no other way to get a frame of an obscure look.
    */
   renderStyleInspector(row) {
+    if (this.restyle) { this.renderRestyleInspector(row); return; }
     const clips = row.data?.style?.clips ?? [];
     const caption = row.data?.style?.caption ?? "";
     const applicable = this.keys.size;
@@ -2028,6 +2049,118 @@ class PresetLibrary {
       el("p", { class: "mmc-style-credit", text:
         t("Style Atlas by hoodtronik · dataset {dataset} by ostris",
           { dataset: this.atlas?.dataset ?? "minimax_h3_1k" }) }),
+    );
+  }
+
+  /**
+   * A look, against the render it is about to be applied to.
+   *
+   * The inspector's one new thing is the wipe: the render's own frame on the
+   * left, the look's frame on the right, one seam between them that drags.
+   * The atlas tab shows what a look *is*; what it could not show is what the
+   * look does to this footage, and a wipe answers that without a render.
+   *
+   * Under it, what the file is told: the fixed clause in the file's own
+   * grammar, then the descriptor cut into attributes as chips — struck, added,
+   * never free-typed into a sentence the file has not seen. A marked chip says
+   * why it is marked and stays; it is the user's to keep.
+   */
+  renderRestyleInspector(row) {
+    const clips = row.data?.style?.clips ?? [];
+    const { frame, family, file } = this.restyle;
+    const grammar = guideLoraStyle(family);
+    if (this.attributesOf !== row.id) {
+      this.attributes = styleAttributes(row.data?.style?.text ?? row.name);
+      this.attributesOf = row.id;
+    }
+    const still = row.stills?.[this.stillIndex] ?? row.stills?.[0];
+    const clip = clips[this.stillIndex] ?? clips[0] ?? "";
+
+    const wipe = el("div", { class: "mmc-restyle-wipe", style: { "--seam": `${this.seam}%` } }, [
+      ...(frame ? [el("img", { class: "mmc-restyle-yours", src: frame, alt: "" })] : []),
+      el("img", { class: "mmc-restyle-look", src: still, alt: "" }),
+      ...(frame ? [
+        el("input", {
+          type: "range", class: "mmc-restyle-seam", min: "8", max: "92", value: String(this.seam),
+          "aria-label": t("Wipe between your frame and the look"),
+          oninput: (event) => {
+            this.seam = Number(event.target.value);
+            wipe.style.setProperty("--seam", `${this.seam}%`);
+          },
+          onkeydown: (event) => event.stopPropagation(),
+        }),
+        el("span", { class: "mmc-restyle-line" }),
+        el("span", { class: "mmc-restyle-knob" }),
+        el("span", { class: "mmc-restyle-tag", text: t("your frame") }),
+      ] : []),
+      el("span", { class: "mmc-restyle-tag end", text: clip }),
+    ]);
+
+    const chip = (attribute, index) => {
+      const why = attributeWarning(attribute);
+      return el("span", { class: `mmc-restyle-chip${why ? " marked" : ""}`, title: why ? t(why) : null }, [
+        el("span", { text: attribute }),
+        el("button", {
+          class: "mmc-restyle-x", "aria-label": t("Remove {what}", { what: attribute }), text: "×",
+          onclick: () => { this.attributes.splice(index, 1); this.renderInspector(); },
+        }),
+      ]);
+    };
+    const adder = el("input", {
+      type: "text", class: "mmc-restyle-add", placeholder: t("+ attribute"),
+      onkeydown: (event) => {
+        event.stopPropagation();
+        if (event.key !== "Enter") return;
+        const word = event.target.value.trim().toLowerCase();
+        if (!word) return;
+        this.attributes.push(word);
+        this.renderInspector();
+        this.inspector.querySelector(".mmc-restyle-add")?.focus();
+      },
+    });
+
+    this.inspector.replaceChildren(
+      wipe,
+      el("div", { class: "mmc-preset-insp-title", text: row.name }),
+      ...(row.rest ? [el("p", { class: "mmc-style-full", text: row.rest })] : []),
+      el("p", { class: "mmc-preset-insp-meta", text: `${this.factsLine(row)} · ${clip}` }),
+      // Several frames of one look: pick the one that goes in as the picture.
+      ...(clips.length > 1 ? [el("div", { class: "mmc-style-shots" }, (row.thumbs ?? []).map((url, index) =>
+        el("button", {
+          class: "mmc-style-shot", "aria-pressed": index === this.stillIndex,
+          title: t("Read off clip {clip}", { clip: clips[index] ?? "" }),
+          onclick: () => { this.stillIndex = index; this.renderInspector(); },
+        }, [el("figure", { "data-chosen": index === this.stillIndex ? "" : null }, [
+          el("img", { src: url, alt: "", loading: "lazy" }),
+          el("figcaption", { text: clips[index] ?? "" }),
+        ])])))] : []),
+      el("div", { class: "mmc-restyle-says" }, [
+        el("span", { class: "mmc-restyle-k", text: t("What the file is told") }),
+        el("div", { class: "mmc-restyle-fixed" }, [
+          el("code", { text: grammar?.prefix ?? "" }),
+          el("span", { text: ` ${(grammar?.picture_form ?? "").replace("<Picture 1>", t("the picture"))}` }),
+        ]),
+        el("div", { class: "mmc-restyle-chips" }, [...this.attributes.map(chip), adder]),
+        el("span", { class: "mmc-restyle-hint", text:
+          t("Three to five things a painter would copy. Nothing about who or what is in the picture.") }),
+      ]),
+      el("div", { class: "mmc-restyle-dial" }, [neuralDial({
+        key: "strength", label: t("strength"), value: this.strength, range: GUIDE_LORA_STRENGTH,
+        note: "How hard the file is applied. 1 is its own unit; 0.7 holds the motion where 1 moves it.",
+        onChange: (next) => { this.strength = next; },
+      })]),
+      el("button", {
+        class: "mmc-preset-apply",
+        disabled: !file || !this.attributes.length || this.busy,
+        text: file ? t("Restyle this render") : t("No style file in models/loras"),
+        title: file ? "" : t("Get minimax_h3_style_transfer from Alissonerdx/Minimax-H3-ComfyUI and drop it in models/loras."),
+        onclick: () => {
+          this.restyle.onRestyle({ row, clip, attributes: [...this.attributes], strength: this.strength });
+          this.close();
+        },
+      }),
+      el("p", { class: "mmc-style-credit", text:
+        t("Only the restyle runs. The render underneath is kept, and so is its sound.") }),
     );
   }
 

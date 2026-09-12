@@ -34,6 +34,10 @@ const out = {
   timeline: JSON.parse(s.serializeTimeline(s.parseTimeline(JSON.stringify({ guide_lora: cases.full })))).guide_lora,
   timeline_off: "guide_lora" in JSON.parse(s.serializeTimeline(s.parseTimeline("{}"))),
   captions: Object.fromEntries(JSON.parse(process.argv[3]).map((name) => [name, s.guideLoraCaption(name)])),
+  style: s.guideLoraStyle(),
+  caption: s.restyleCaption(["Claymation", " visible fingerprint texture", ""]),
+  restyle: s.isRestyle(s.parseGuideLora(cases.full)),
+  sharpen: s.isRestyle(s.parseGuideLora(cases.strings)),
 };
 for (const [name, raw] of Object.entries(cases)) {
   out.parsed[name] = s.parseGuideLora(raw);
@@ -47,7 +51,8 @@ console.log(JSON.stringify(out));
 # the two parses differ by design. The table itself is mirrored below.
 GUIDE = "h3/minimax_h3_style_transfer_v1.0_r64.safetensors"
 CASES = {
-    "full": {"on": True, "lora": GUIDE, "strength": 1.3, "prompt": "sharp", "checkpoint": "fl2va"},
+    "full": {"on": True, "lora": GUIDE, "strength": 1.3, "prompt": "sharp", "checkpoint": "fl2va",
+             "picture": "atlas:000006", "look": "Claymation"},
     "off": {"on": False, "lora": GUIDE},
     "empty": {},
     "garbage": "yes",
@@ -61,6 +66,11 @@ js = layout.run(SCRIPT, MIRROR, CASES, NAMES)
 
 for name in NAMES:
     check(f"caption for {name!r}", js["captions"][name], gl.caption_for(name))
+check("the style grammar is the node's", js["style"], gl.STYLE)
+check("a restyle caption is the trigger, the picture form, the attributes",
+      js["caption"], f"{gl.STYLE['prefix']} {gl.STYLE['picture_form']} claymation, visible fingerprint texture.")
+check("a block with a picture is a restyle", js["restyle"], True)
+check("...and one without is not", js["sharpen"], False)
 
 check("strength stops", js["strength"],
       {"min": gl.MIN_STRENGTH, "max": gl.MAX_STRENGTH, "step": 0.05, "default": gl.DEFAULT_STRENGTH})

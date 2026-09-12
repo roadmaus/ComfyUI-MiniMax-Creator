@@ -34,7 +34,16 @@ every blob that never asked round-trips as it did. `families/h3/guidelora.py`
 is the pure half (request, stack, grid) and `guidepass.py` the nodes; the
 family contract grows `finishes` / `finish_request` / `finish_routes` /
 `emit_finish` so a second family can hang its own finishing pass on the
-same hook. Unmeasured on a real render: the feathered join between two
+same hook. **Restyle** is the style file through the same pass with a
+picture: the pass takes a reference picture (`guide_lora.picture`, a look's
+frame as `atlas:000123`) and presents it as `<Picture 1>` beside the guide,
+the library's Style tab opens as a picker with the render's own frame in a
+wipe against each look, the descriptor is cut into the attribute chips the
+file's caption grammar wants (`stylelib.styleAttributes`, the grammar itself
+in `guidelora.STYLE` and served through the manifest), and the button writes
+the block and queues the node — the passes are cached, so only the pass
+samples. The door is a Restyle chip on a finished render and a row in the
+pill. Unmeasured on a real render: the feathered join between two
 independently finished parts, and canvases past the files' 0.59 MP.
 
 **Motion fix: a switch on the card that slows a shot down where it moves too

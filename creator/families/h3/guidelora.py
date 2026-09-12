@@ -69,6 +69,20 @@ CAPTIONS = [
                "natural photorealistic appearance."},
 ]
 
+# The style-transfer file's caption grammar. Every caption it was trained on
+# opens with the trigger; with a reference picture in the layout the sentence
+# is a verb, "in the style of <Picture 1>", then three to five attributes a
+# painter would copy — never the picture's subject, never an artist or a
+# franchise, which resolve the task from text alone and leave the picture
+# inert. Without a picture the style is named in words. The frontend composes
+# the sentence from a look's descriptor (`presets/stylelib.js`); this is the
+# fixed part, served through the manifest so both sides spell it once.
+STYLE = {
+    "match": "style_transfer",
+    "prefix": "style_transfer:",
+    "picture_form": "Re-render this video in the style of <Picture 1>:",
+}
+
 
 def caption_for(name):
     """The published caption for the file `name`, or ""."""
@@ -99,10 +113,11 @@ class Request:
     with nothing to be, and the render says so before a loader is built.
     """
 
-    __slots__ = ("on", "lora", "strength", "prompt", "checkpoint", "entries")
+    __slots__ = ("on", "lora", "strength", "prompt", "checkpoint", "picture", "look",
+                 "entries")
 
     def __init__(self, on=False, lora="", strength=DEFAULT_STRENGTH, prompt="",
-                 checkpoint=DEFAULT_CHECKPOINT, entries=None):
+                 checkpoint=DEFAULT_CHECKPOINT, picture="", look="", entries=None):
         # A real boolean only, on both sides of the wire.
         self.on = on is True
         # Strings only, like the pill: a number where a name should be is a
@@ -111,6 +126,12 @@ class Request:
         self.strength = _number(strength, MIN_STRENGTH, MAX_STRENGTH, DEFAULT_STRENGTH)
         self.prompt = prompt.strip() if isinstance(prompt, str) else ""
         self.checkpoint = checkpoint if checkpoint in CHECKPOINTS else DEFAULT_CHECKPOINT
+        # A reference picture beside the guide — a look's frame (`atlas:000123`)
+        # or a file under input/ — presented to the model as <Picture 1>. The
+        # style file reads it; the sharpener has no use for one.
+        self.picture = picture.strip() if isinstance(picture, str) else ""
+        # What the look is called, for the pill; nothing here reads it.
+        self.look = look.strip() if isinstance(look, str) else ""
         self.entries = list(entries or [])
 
     @classmethod
@@ -125,7 +146,8 @@ class Request:
         if not isinstance(raw, dict):
             return cls()
         request = cls(on=raw.get("on"), lora=raw.get("lora"), strength=raw.get("strength"),
-                      prompt=raw.get("prompt"), checkpoint=raw.get("checkpoint"))
+                      prompt=raw.get("prompt"), checkpoint=raw.get("checkpoint"),
+                      picture=raw.get("picture"), look=raw.get("look"))
         if request.on and not request.lora:
             raise ValueError(
                 "The guide LoRA pass is switched on and no file has been picked. "
@@ -141,7 +163,8 @@ class Request:
 
     def as_dict(self):
         return {"on": self.on, "lora": self.lora, "strength": self.strength,
-                "prompt": self.prompt, "checkpoint": self.checkpoint}
+                "prompt": self.prompt, "checkpoint": self.checkpoint,
+                "picture": self.picture, "look": self.look}
 
     def __eq__(self, other):
         return isinstance(other, Request) and self.as_dict() == other.as_dict()

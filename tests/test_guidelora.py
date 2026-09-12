@@ -66,6 +66,16 @@ check("a written prompt is kept",
       gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "prompt": "neon"}}).prompt, "neon")
 check("off fills nothing", gl.Request.of({"guide_lora": {"on": False, "lora": GUIDE}}).prompt, "")
 
+# --- the picture and the style grammar ------------------------------------------
+
+pic = gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "picture": " atlas:000006 ", "look": " Claymation "}})
+check("the picture is trimmed", pic.picture, "atlas:000006")
+check("the look's name rides along", pic.look, "Claymation")
+check("a number is not a picture", gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "picture": 4}}).picture, "")
+check("the style grammar names the file", gl.STYLE["match"], "style_transfer")
+check("...opens with the trigger", gl.STYLE["prefix"], "style_transfer:")
+check("...and cites the picture", "<Picture 1>" in gl.STYLE["picture_form"], True)
+
 # --- the stack -------------------------------------------------------------------------
 
 plain = gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE}, "loras": STACK})

@@ -217,6 +217,11 @@ shift = [inputs for _, inputs in kinds.get("MiniMaxH3SigmaShift", [])
          if inputs["model"] == [kinds[MODEL][0][0], 0]]
 check("the flow shift goes on after the stack", len(shift), 1)
 
+# The picture: a look's frame as <Picture 1>, only written when there is one.
+check("a sharpen writes no picture input", "picture" in pass_inputs, False)
+kinds = by_class(video(piece({**ON, "picture": "atlas:000006", "look": "Claymation"})))
+check("a restyle hands the pass its picture", kinds[PASS][0][1]["picture"], "atlas:000006")
+
 # --- where it sits ----------------------------------------------------------------
 
 kinds = by_class(video(piece(ON, upscale="redetail", upscale_models=UPSCALE_MODELS)))
