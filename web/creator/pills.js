@@ -1384,10 +1384,13 @@ export function openGuideLoraPopover(anchor, { target, commit, onPickLook = null
       }));
       rows.push(el("div", { class: "mmc-glora-prompt" }, [
         el("span", { class: "mmc-nr-label", text: t("prompt") }),
+        // `text`, not `value`: a textarea's content is its text node, and a
+        // value attribute on one is ignored — the caption was in the block and
+        // the box drew empty.
         el("textarea", {
           class: "mmc-glora-text", rows: "3", spellcheck: "false",
           placeholder: t("The file's trigger caption, or the style to move to"),
-          value: block.prompt,
+          text: block.prompt,
           oninput: (event) => { block.prompt = event.target.value; commit(); },
           onkeydown: (event) => event.stopPropagation(),
         }),
