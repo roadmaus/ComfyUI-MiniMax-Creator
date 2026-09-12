@@ -403,15 +403,17 @@ export function mountOverlay(overlay, onEscape) {
 
 /** Anchor a popover to a pill, kept inside the viewport. */
 export function placeNear(popover, anchor, { above = true } = {}) {
+  // The pill this hangs off may be gone: a popover whose rows commit — the
+  // face pass's, the two-pass section's, the guide pass's switch — re-renders
+  // the node under itself, and the button that was clicked is replaced by an
+  // identical one in the same place. A detached element measures (0, 0, 0, 0),
+  // so it is measured while it is still there and that rect is kept: the pill
+  // has not moved, and a popover that grows after the commit — a switch that
+  // opens the dials under it — still has to be clamped to the viewport, which
+  // leaving it where it was did not do.
+  let rect = anchor.getBoundingClientRect();
   const place = () => {
-    // The pill this hangs off may be gone: a popover whose rows commit — the
-    // face pass's, the two-pass section's — re-renders the node under itself,
-    // and the button that was clicked is replaced by an identical one in the
-    // same place. A detached element measures (0, 0, 0, 0), so re-placing
-    // against it would throw the popover into the top-left corner. Its current
-    // position is still the right one, so the answer is to leave it there.
-    if (anchor.isConnected === false) return;
-    const rect = anchor.getBoundingClientRect();
+    if (anchor.isConnected !== false) rect = anchor.getBoundingClientRect();
     const box = popover.getBoundingClientRect();
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - box.width - 8));
     const top = above && rect.top - box.height - 8 > 8
