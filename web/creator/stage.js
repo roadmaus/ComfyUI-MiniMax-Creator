@@ -33,16 +33,19 @@ import { api } from "../../../scripts/api.js";
 import { el } from "./dom.js";
 import { outputUrl, uiSetting } from "./api.js";
 import { openLoupe } from "./loupe.js";
+import { submission } from "./queue.js";
 import { t } from "./i18n.js";
 
 /** Every event this listens to. `b_preview` is the metadata-less legacy frame:
  *  it names no node, so it is only trusted while `progress_state` already says
  *  one of ours is the thing sampling — see the handler. `mmc_segment` is our
  *  own: the timeline's segment node announcing which segment the queue has
- *  reached, the moment it starts encoding. */
+ *  reached, the moment it starts encoding. `mmc_refused` is ours too: the
+ *  server turned a prompt away before it was queued (queue.js), which is the
+ *  one failure the socket never carries. */
 const EVENTS = ["progress_state", "b_preview_with_metadata", "b_preview",
                 "kj_preview_override", "executed", "execution_error", "execution_start",
-                "execution_interrupted", "mmc_segment", "reconnected", "status"];
+                "execution_interrupted", "mmc_segment", "mmc_refused", "reconnected", "status"];
 
 /** A progress report this long is a sampler; the loaders and decoders report a
  *  step or two each. What lets the stage open on progress rather than waiting
@@ -157,7 +160,13 @@ export class Stage {
     this.progress = null;    // {step, total}
     this.frame = null;       // object URL or data URI of the newest preview
     this.result = null;      // {url, name} of the finished video
-    this.error = null;
+    // Why there is no picture: `{started, items: [{where, what}]}`. `started`
+    // says whether the run got as far as the sampler — a refusal never does —
+    // and each item is one thing that went wrong, said as where and what.
+    this.failure = null;
+    // The same items for a press refused *while* this stage is sampling —
+    // said in the readout rather than over the live picture. See `mmc_refused`.
+    this.refused = null;
     this.startedAt = 0;
     // Which queued prompt the stage believes it is watching, and when it last
     // heard anything about it. Between them they are the whole of the recovery
@@ -413,15 +422,70 @@ export class Stage {
         this.reset();
         break;
 
-      case "execution_error":
-        if (!this.ours(detail.node_id)) break;
-        this.state = "failed";
-        this.progress = null;
-        clearInterval(this.ticker);
-        this.error = detail.exception_message || t("the render failed");
-        this.render();
+      case "execution_error": {
+        // Ours if the node that raised is in our expansion — or if the press
+        // that queued this prompt was ours and the node that raised is a
+        // loader wired in upstream: the failure is still the answer to that
+        // press, and a stage that only listened for its own id sat idle while
+        // ComfyUI marked a node behind the fullscreen shell.
+        const sent = submission(detail.prompt_id);
+        if (!this.ours(detail.node_id) && !this.claims(sent)) break;
+        const title = sent?.titles?.[String(detail.node_id)];
+        this.fail([{
+          where: this.ours(detail.node_id) ? null : title ?? detail.node_type ?? null,
+          what: detail.exception_message || t("the render failed"),
+        }], { started: true });
+        break;
+      }
+
+      case "mmc_refused":
+        // Never queued, so nothing else is coming: this is the whole story of
+        // the press. Ours if a refused node is ours, or the press named us, or
+        // — a plain queue naming nobody — we were in the graph it sent.
+        if (!detail.items?.some((item) => this.ours(item.nodeId))
+            && !this.claims(detail)) break;
+        // A second press, refused while the first is still on the sampler:
+        // the picture in the box is a render that is happening, and a slate
+        // over it would say the opposite. The refusal rides the readout
+        // instead, the way a stall does, for the rest of the run.
+        if (this.state === "sampling") {
+          this.refused = detail.items;
+          this.renderReadout();
+          break;
+        }
+        this.fail(detail.items, { started: false });
         break;
     }
+  }
+
+  /** Whether a submission — `{targets, nodes|titles}` — was this node's press:
+   *  named as a target, or in a graph queued whole. */
+  claims(sent) {
+    if (!sent) return false;
+    if (sent.targets?.length) return sent.targets.some((id) => this.ours(id));
+    const ids = sent.nodes ?? Object.keys(sent.titles ?? {});
+    return ids.some((id) => this.ours(id));
+  }
+
+  /**
+   * The run is over and there is no picture. The slate replaces whatever the
+   * box held — a previous take left up under a failure reads as the failure's
+   * result, and the take is on the lip and in the gallery anyway.
+   *
+   * @param {{where: string|null, what: string}[]} items  one per thing wrong
+   * @param {{started: boolean}} spec  whether the queue ran the prompt at all
+   *   — a refusal is the one case it did not. The clock is kept only if the
+   *   sampler was reached: a loader that raised has no time worth reading.
+   */
+  fail(items, { started }) {
+    const tookMs = this.state === "sampling" && this.startedAt ? Date.now() - this.startedAt : 0;
+    clearInterval(this.ticker);
+    this.clearRender();
+    this.state = "failed";
+    this.tookMs = tookMs;
+    this.failure = { started, items: items.filter((item) => item?.what) };
+    if (!this.failure.items.length) this.failure.items.push({ where: null, what: t("the render failed") });
+    this.render();
   }
 
   /** Everything the last render left in the box — the picture, the clock, what
@@ -430,7 +494,8 @@ export class Stage {
   clearRender() {
     this.metaFrameAt = 0;
     this.result = null;
-    this.error = null;
+    this.failure = null;
+    this.refused = null;
     this.tookMs = 0;
     this.progress = null;
     this.segment = null;
@@ -577,11 +642,9 @@ export class Stage {
       // cancelled while nobody was listening. Saying so is the point — this is
       // the state the report describes as costing a 179-second render, because
       // a stage that cannot tell "running" from "over" gets cancelled by hand.
-      this.state = "failed";
-      this.progress = null;
-      clearInterval(this.ticker);
-      this.error = failureText(entry.status) ?? t("the render ended without a file");
-      this.render();
+      this.fail([{ where: null,
+                   what: failureText(entry.status) ?? t("the render ended without a file") }],
+                { started: true });
     } catch { /* the wire is down as well; the ticker asks again in five seconds */ }
     finally { this.probing = false; }
   }
@@ -647,6 +710,7 @@ export class Stage {
     if (this.state === "done" && this.result) {
       this.media.replaceChildren(this.result.isImage ? this.still() : this.video());
     }
+    else if (this.state === "failed") this.media.replaceChildren(this.slate());
     else if (this.frame) this.media.replaceChildren(this.previewFrame());
     else this.media.replaceChildren();
 
@@ -681,7 +745,13 @@ export class Stage {
     const right = [];
 
     if (this.state === "failed") {
-      left.push(el("span", { class: "mmc-stage-chip warn", text: this.error }));
+      // The slate says what happened; the row keeps only the clock, in the
+      // slot it always has — what the failed run cost is still a reading.
+      if (this.tookMs) right.push(el("span", {
+        class: "mmc-stage-chip mmc-stage-clock",
+        title: t("How long the render ran before it failed"),
+        text: elapsed(this.tookMs),
+      }));
     } else if (this.state === "sampling") {
       // Which segment these steps belong to — announced by the segment node,
       // so it names the one actually being made, cached ones skipped.
@@ -690,13 +760,20 @@ export class Stage {
         text: this.segmentLabel?.(this.segment) ?? t("Segment {n}", { n: this.segment }),
       }));
       left.push(el("span", {
-        class: "mmc-stage-chip",
+        class: "mmc-stage-chip mmc-stage-count",
         text: this.progress?.total ? `${this.progress.step} / ${this.progress.total}` : t("sampling"),
       }));
       // Nothing has arrived for a long time and the server has not said the
       // render is over either. Worth saying out loud: a clock ticking under a
       // frozen preview is indistinguishable from a hang, and the report this
       // came from describes a healthy render cancelled by hand because of it.
+      // A second press turned away while this one runs — see `mmc_refused`.
+      // The first reason on the chip, all of them on hover.
+      if (this.refused?.length) left.push(el("span", {
+        class: "mmc-stage-chip warn",
+        title: this.refused.map((item) => [item.where, item.what].filter(Boolean).join(": ")).join("\n"),
+        text: t("Next render not started: {why}", { why: this.refused[0].what }),
+      }));
       if (this.quiet() > STALL_MS) left.push(el("span", {
         class: "mmc-stage-chip warn",
         title: t("Nothing has arrived from the server for a while. The render may well still "
@@ -733,6 +810,35 @@ export class Stage {
       ...(left.length ? [el("div", { class: "mmc-stage-side" }, left)] : []),
       ...(right.length ? [el("div", { class: "mmc-stage-side end" }, right)] : []),
     );
+  }
+
+  /**
+   * The slate: what stands in the frame when the render did not. Black, like
+   * the frame it stands in for, and the reason written across it in the type
+   * the rest of the card uses — a title card rather than a dialog, because it
+   * lives where the picture lives and goes when the next take starts.
+   *
+   * Each item is two lines where there are two things to say: *where* it went
+   * wrong — the node the user would have to open, in the warning colour — and
+   * *what* the server said, verbatim, since that wording is what a search or an
+   * issue will need. Where the failure is this node's own, there is no where.
+   */
+  slate() {
+    const items = this.failure?.items ?? [];
+    return el("div", {
+      class: "mmc-stage-slate",
+      // Selectable, and scrollable when a traceback runs long: the readout
+      // over it swallows the pointer and this opts back in for both.
+      onpointerdown: (event) => event.stopPropagation(),
+      onwheel: (event) => event.stopPropagation(),
+    }, [
+      el("div", { class: "mmc-stage-slate-lead",
+                  text: this.failure?.started ? t("The render failed.") : t("The render did not start.") }),
+      ...items.map((item) => el("div", { class: "mmc-stage-slate-item" }, [
+        item.where ? el("div", { class: "mmc-stage-slate-where", text: item.where }) : null,
+        el("div", { class: "mmc-stage-slate-what", text: item.what }),
+      ])),
+    ]);
   }
 
   /** The newest step preview. An animated clip plays itself in a bare <video>;

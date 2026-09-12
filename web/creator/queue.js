@@ -21,33 +21,106 @@ const listeners = new Set();
 // boundary once so each accepted prompt is paired with the graph it sent,
 // including batches and replies that arrive after an execution event.
 const submissions = new Set();
-let observingSubmissions = false;
+
+// What each accepted prompt was made of — the node ids and titles of the graph
+// that went out, and which nodes the press named. Kept so a stage hearing an
+// `execution_error` for some node it did not emit — a loader wired in upstream,
+// the other half of a pre-stage pair — can still tell whether the run that
+// broke was the run its Render started. Bounded: a tab that queues all day
+// must not remember all day.
+const submitted = new Map();
+const REMEMBERED = 64;
+
+/** The name each node in a submitted graph goes by — what the user called it,
+ *  else what it is. `_meta.title` is the frontend's own stamp on every node. */
+function titlesOf(output) {
+  const titles = {};
+  for (const [id, node] of Object.entries(output ?? {})) {
+    titles[id] = node?._meta?.title || node?.class_type || id;
+  }
+  return titles;
+}
+
+function remember(promptId, output, targets) {
+  submitted.set(promptId, { titles: titlesOf(output), targets });
+  while (submitted.size > REMEMBERED) submitted.delete(submitted.keys().next().value);
+}
+
+/** What went out under `promptId`, or null for a prompt this tab did not send:
+ *  `{titles: {id: title}, targets: [id]}` — targets empty for a plain queue. */
+export function submission(promptId) {
+  return submitted.get(String(promptId)) ?? null;
+}
+
+// The server's account of a refused prompt, flattened to what a person can
+// act on. `node_errors` is keyed by node id with a list of `{message, details}`
+// per node; a refusal with no node to blame (`prompt_no_outputs`, an
+// unreadable body) comes as `error` alone. ComfyUI's `details` for a bad combo
+// value is the whole list of valid ones, which nobody reads off a card.
+function refusalItems(response, titles) {
+  const items = [];
+  const clip = (text) => (text.length > 240 ? `${text.slice(0, 239)}…` : text);
+  for (const [id, entry] of Object.entries(response?.node_errors ?? {})) {
+    for (const error of entry?.errors ?? []) {
+      const what = [error.message, error.details].filter(Boolean).join(": ");
+      items.push({ nodeId: id, where: titles[id] ?? entry.class_type ?? id, what: clip(what) });
+    }
+  }
+  const top = response?.error;
+  if (!items.length && top) {
+    const what = typeof top === "string" ? top
+      : [top.message, top.details].filter(Boolean).join(": ");
+    items.push({ nodeId: null, where: null, what: clip(what || t("the render was refused")) });
+  }
+  return items;
+}
+
+// The one place every prompt this tab sends goes through. Wrapping the API
+// rather than `app.queuePrompt` because that one catches a refusal itself,
+// shows what it shows and resolves — and what it shows is, since the errors
+// tab arrived (frontend 1.36+, on by default), a tab in a side panel that the
+// fullscreen editor stands in front of. So the refusal is caught here on its
+// way past and said again on the api as `mmc_refused`, which the stages
+// listen for like any other event of the queue's.
+if (typeof api.queuePrompt === "function") {
+  const original = api.queuePrompt;
+  api.queuePrompt = async function (...args) {
+    const output = args[1]?.output;
+    const targets = (args[2]?.partialExecutionTargets ?? []).map(String);
+    const snapshots = [];
+    for (const listener of submissions) {
+      try {
+        const snapshot = listener.capture(output);
+        if (snapshot) snapshots.push([listener, snapshot]);
+      } catch (error) { console.warn("[Continuity] could not snapshot a submitted strip", error); }
+    }
+    // Preserve the API's arguments, receiver, result and rejection. A failed
+    // request must not create a queue entry or attach somebody else's take.
+    let answer;
+    try {
+      answer = await original.apply(this, args);
+    } catch (error) {
+      // A refusal has `response`; a wire that is down has only a message.
+      const items = refusalItems(error?.response, titlesOf(output));
+      if (!items.length) items.push({ nodeId: null, where: null, what: String(error?.message ?? error) });
+      api.dispatchEvent(new CustomEvent("mmc_refused", {
+        detail: { nodes: Object.keys(output ?? {}), targets, items },
+      }));
+      throw error;
+    }
+    if (answer?.prompt_id) {
+      remember(String(answer.prompt_id), output, targets);
+      for (const [listener, snapshot] of snapshots) {
+        if (!submissions.has(listener)) continue;
+        try { listener.accepted(String(answer.prompt_id), snapshot); }
+        catch (error) { console.warn("[Continuity] could not record a submitted strip", error); }
+      }
+    }
+    return answer;
+  };
+}
 
 export function watchSubmittedPrompts(capture, accepted) {
-  if (!observingSubmissions && typeof api.queuePrompt === "function") {
-    const original = api.queuePrompt;
-    api.queuePrompt = async function (...args) {
-      const snapshots = [];
-      for (const listener of submissions) {
-        try {
-          const snapshot = listener.capture(args[1]?.output);
-          if (snapshot) snapshots.push([listener, snapshot]);
-        } catch (error) { console.warn("[Continuity] could not snapshot a submitted strip", error); }
-      }
-      // Preserve the API's arguments, receiver, result and rejection. A failed
-      // request must not create a queue entry or attach somebody else's take.
-      const answer = await original.apply(this, args);
-      if (answer?.prompt_id) {
-        for (const [listener, snapshot] of snapshots) {
-          if (!submissions.has(listener)) continue;
-          try { listener.accepted(String(answer.prompt_id), snapshot); }
-          catch (error) { console.warn("[Continuity] could not record a submitted strip", error); }
-        }
-      }
-      return answer;
-    };
-    observingSubmissions = true;
-  }
   const listener = { capture, accepted };
   submissions.add(listener);
   return () => submissions.delete(listener);
