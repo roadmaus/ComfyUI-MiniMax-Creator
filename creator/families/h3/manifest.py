@@ -338,9 +338,12 @@ def manifest():
                            "default_checkpoint": guidelora.DEFAULT_CHECKPOINT,
                            # What the pill says about each, translation keys
                            # like any string written in source.
-                           # The published files' captions, by filename —
-                           # `guidelora.CAPTIONS`, the pill's copy of the
-                           # node's own table.
+                           # What the published files do, by filename —
+                           # `guidelora.ROLES`, the pill's copy of the node's
+                           # own table, and the two views the older readers
+                           # take of it.
+                           "roles": [dict(role) for role in guidelora.ROLES],
+                           "source": guidelora.SOURCE,
                            "captions": [dict(entry) for entry in guidelora.CAPTIONS],
                            "style": dict(guidelora.STYLE),
                            "notes": {"ref2va": "What the published guide files were "

@@ -6,6 +6,18 @@ exactly as it was written, wall of text and all.
 
 ## Unreleased
 
+**Guide LoRA pass: the pill asks what the pass does, not which file.** The
+popover opens on a switch of roles — Sharpen, Style, Other — read off a table
+in `guidelora.py` that names what each published file does, so the author's
+next file is one row and one more segment. A role picks its file (the one
+remembered, else the one installed) and writes what the file is told: the
+sharpener's own caption is shown, not typed — the box that used to sit empty
+under it is gone, and with it the bug where switching files kept the last
+file's sentence; the style role shows the look's frame and the sentence the
+library composed, or the door to the atlas; only an unknown file gets a box.
+The role and each role's file are kept in the LoRA prefs, so switching the
+pass on in a fresh piece lands on the last setup in one press.
+
 **Settings: which loader puts H3's LoRAs on.** The pack's vendored stack stays
 the default — it keeps the quantized checkpoint exactly as baked and runs each
 file as an exact branch — and a new choice under Rendering switches a machine

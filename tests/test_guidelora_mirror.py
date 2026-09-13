@@ -35,6 +35,8 @@ const out = {
   timeline_off: "guide_lora" in JSON.parse(s.serializeTimeline(s.parseTimeline("{}"))),
   captions: Object.fromEntries(JSON.parse(process.argv[3]).map((name) => [name, s.guideLoraCaption(name)])),
   style: s.guideLoraStyle(),
+  roles: s.guideLoraRoles(),
+  role: Object.fromEntries(JSON.parse(process.argv[3]).map((name) => [name, s.guideLoraRole(name)?.key ?? null])),
   caption: s.restyleCaption(["Claymation", " visible fingerprint texture", ""]),
   restyle: s.isRestyle(s.parseGuideLora(cases.full)),
   sharpen: s.isRestyle(s.parseGuideLora(cases.strings)),
@@ -67,6 +69,11 @@ js = layout.run(SCRIPT, MIRROR, CASES, NAMES)
 for name in NAMES:
     check(f"caption for {name!r}", js["captions"][name], gl.caption_for(name))
 check("the style grammar is the node's", js["style"], gl.STYLE)
+check("the roles are the node's", js["roles"], gl.ROLES)
+for name in NAMES:
+    stem = name.split("/")[-1].lower()
+    want = next((role["key"] for role in gl.ROLES if role["match"] in stem), None)
+    check(f"role of {name!r}", js["role"][name], want)
 check("a restyle caption is the trigger, the picture form, the attributes",
       js["caption"], f"{gl.STYLE['prefix']} {gl.STYLE['picture_form']} claymation, visible fingerprint texture.")
 check("a block with a picture is a restyle", js["restyle"], True)

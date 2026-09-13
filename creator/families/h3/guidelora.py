@@ -58,32 +58,44 @@ DEFAULT_STRENGTH = 1.0
 MIN_STRENGTH = 0.0
 MAX_STRENGTH = 2.0
 
-# What the published files are told, by filename. A guide file's caption is
-# its instruction and the files ship without a sidecar carrying it, so the
-# pill and the node both read it from here: the pill writes it into the
-# prompt box when the file is picked and the box is empty, the node uses it
-# at queue time when the box was left empty. A style file has no fixed
-# caption — the style is the prompt — so it is not in the table. Matched
-# case-insensitively against the file's name, first hit wins.
-CAPTIONS = [
-    {"match": "lms",
+# What the published files do, by filename. A guide file's caption is its
+# instruction and the files ship without a sidecar carrying it, so the pill and
+# the node both read it from here. Each row is one *role* the pass can play —
+# what the pill's switch offers — matched case-insensitively against the
+# file's name, first hit wins; a file matching no row is still runnable, with
+# a prompt typed by hand. A role with a `prompt` is told that sentence and
+# nothing else: the pill writes it on the pick and the node fills an empty
+# box with it at queue time. The style role has no fixed caption — the style
+# is the prompt — so its row carries the grammar instead: every caption it was
+# trained on opens with the trigger; with a reference picture in the layout
+# the sentence is a verb, "in the style of <Picture 1>", then three to five
+# attributes a painter would copy — never the picture's subject, never an
+# artist or a franchise, which resolve the task from text alone and leave the
+# picture inert. The frontend composes the sentence from a look's descriptor
+# (`presets/stylelib.js`); this is the fixed part, served through the manifest
+# so both sides spell it once. `blurb` is what the pill says under the switch,
+# a translation key like any string written in source. The author's next file
+# is one more row here.
+ROLES = [
+    {"key": "sharpen", "label": "Sharpen", "match": "lms",
+     "blurb": "Crisper detail on the picture as written.",
      "prompt": "Enhance this video with sharp, crisp details while preserving a "
                "natural photorealistic appearance."},
+    {"key": "style", "label": "Style", "match": "style_transfer",
+     "blurb": "Generated again in a look from the atlas, its frame as the picture.",
+     "prompt": "",
+     "prefix": "style_transfer:",
+     "picture_form": "Re-render this video in the style of <Picture 1>:"},
 ]
 
-# The style-transfer file's caption grammar. Every caption it was trained on
-# opens with the trigger; with a reference picture in the layout the sentence
-# is a verb, "in the style of <Picture 1>", then three to five attributes a
-# painter would copy — never the picture's subject, never an artist or a
-# franchise, which resolve the task from text alone and leave the picture
-# inert. Without a picture the style is named in words. The frontend composes
-# the sentence from a look's descriptor (`presets/stylelib.js`); this is the
-# fixed part, served through the manifest so both sides spell it once.
-STYLE = {
-    "match": "style_transfer",
-    "prefix": "style_transfer:",
-    "picture_form": "Re-render this video in the style of <Picture 1>:",
-}
+# Where the published files are, for the pill to say when one is missing.
+SOURCE = "Alissonerdx/Minimax-H3-ComfyUI"
+
+# The two views the node and its tests read the table through: the captioned
+# files, and the style grammar.
+CAPTIONS = [{"match": role["match"], "prompt": role["prompt"]} for role in ROLES if role["prompt"]]
+STYLE = next({key: role[key] for key in ("match", "prefix", "picture_form")}
+             for role in ROLES if "picture_form" in role)
 
 
 # The rig the pass samples on: its own, not the piece's. Measured on the lab

@@ -280,13 +280,81 @@ export const css = `
 .mmc-neural-pop .mmc-pop-note { padding: 9px 0 0; margin: 0; }
 
 /* The guide-LoRA pass's popover: the refiner's column — the same head, lead,
-   dial and note — with a file picker and a prompt box between them. The picker
-   is a search over one folder rather than the LoRA manager, because this is
-   one file in one slot and not a stack. */
+   dial and note — with the role switch between them. The switch is the one
+   loud thing: a full-width bar of two or three words, the on segment lifted,
+   because which role the pass plays is the whole decision and the file is a
+   consequence of it. Under the bar, a role's body is facts set in the dim
+   voice (the file's name, what it is told) and at most one door. Only an
+   unknown file gets a form. */
 .mmc-glora-pop { width: 296px; padding: 10px 12px 12px; display: flex; flex-direction: column; }
 .mmc-glora-pop > div { display: flex; flex-direction: column; gap: 11px; }
 .mmc-glora-pop .mmc-pop-title { padding: 0; color: var(--mmc-strong); font-weight: 600; }
 .mmc-glora-pop .mmc-pop-note { padding: 9px 0 0; margin: 0; }
+.mmc-glora-section { display: flex; flex-direction: column; gap: 8px; }
+.mmc-glora-roles {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px;
+  padding: 2px; border-radius: 9px; background: var(--mmc-wash); border: 1px solid var(--mmc-line);
+}
+.mmc-glora-role {
+  padding: 5px 6px; border: 0; border-radius: 7px; cursor: pointer; font-family: inherit;
+  background: none; color: var(--mmc-dim); font-size: calc(12px * var(--mmc-type));
+  transition: color 120ms ease, background 120ms ease;
+}
+.mmc-glora-role:hover { color: var(--mmc-text); }
+.mmc-glora-role.on { background: var(--mmc-surface-2); color: var(--mmc-strong); box-shadow: 0 1px 4px var(--mmc-shadow-soft); }
+.mmc-glora-role:focus-visible { outline: 2px solid var(--mmc-accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .mmc-glora-role { transition: none; } }
+.mmc-glora-blurb {
+  margin: 0; color: var(--mmc-dim); font-size: calc(11px * var(--mmc-type)); line-height: 1.4;
+}
+.mmc-glora-fileline {
+  color: var(--mmc-text); font-size: calc(11.5px * var(--mmc-type));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mmc-glora-fileline.dim { color: var(--mmc-dim); }
+.mmc-glora-missing {
+  display: flex; flex-direction: column; gap: 2px; font-size: calc(11.5px * var(--mmc-type));
+  color: var(--mmc-warn); line-height: 1.4;
+}
+.mmc-glora-missing .dim { color: var(--mmc-dim); }
+.mmc-glora-versions { display: flex; flex-wrap: wrap; gap: 4px; }
+.mmc-glora-version {
+  padding: 3px 8px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  background: none; border: 1px solid transparent; color: var(--mmc-dim);
+  font-size: calc(11px * var(--mmc-type)); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mmc-glora-version:hover { color: var(--mmc-text); background: var(--mmc-wash); }
+.mmc-glora-version.on { background: var(--mmc-wash-2); color: var(--mmc-strong); border-color: var(--mmc-line-2); }
+.mmc-glora-told { display: flex; align-items: baseline; gap: 10px; }
+.mmc-glora-sentence {
+  color: var(--mmc-dim); font-size: calc(11px * var(--mmc-type)); line-height: 1.45; font-style: italic;
+}
+.mmc-glora-lookrow { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.mmc-glora-thumb {
+  width: 36px; height: 36px; border-radius: 6px; object-fit: cover; flex: none;
+  background: var(--mmc-media-bg); border: 1px solid var(--mmc-line);
+}
+.mmc-glora-thumb.blank { display: inline-block; }
+.mmc-glora-lookname {
+  flex: 1; min-width: 0; color: var(--mmc-strong); font-size: calc(12.5px * var(--mmc-type));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mmc-glora-change {
+  flex: none; padding: 4px 9px; border-radius: 6px; cursor: pointer; font-family: inherit;
+  background: none; border: 1px solid var(--mmc-line); color: var(--mmc-text);
+  font-size: calc(11px * var(--mmc-type));
+}
+.mmc-glora-change:hover { border-color: var(--mmc-line-2); }
+.mmc-glora-door {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  background: var(--mmc-wash); border: 1px dashed var(--mmc-line-2); color: var(--mmc-text);
+}
+.mmc-glora-door:hover { border-color: var(--mmc-accent); }
+.mmc-glora-door:focus-visible { outline: 2px solid var(--mmc-accent); outline-offset: 1px; }
+.mmc-glora-door-word { font-size: calc(12px * var(--mmc-type)); color: var(--mmc-strong); }
+.mmc-glora-door-sub { font-size: calc(11px * var(--mmc-type)); color: var(--mmc-dim); line-height: 1.4; }
 .mmc-glora-file { display: flex; align-items: center; gap: 10px; }
 .mmc-glora-file.searching { flex-direction: column; align-items: stretch; gap: 6px; }
 .mmc-glora-pick {
@@ -314,8 +382,6 @@ export const css = `
 .mmc-glora-row.on { color: var(--mmc-accent); }
 .mmc-glora-none { padding: 4px 8px; color: var(--mmc-dim); font-size: calc(11px * var(--mmc-type)); }
 .mmc-glora-prompt { display: flex; flex-direction: column; gap: 5px; }
-.mmc-glora-look { display: flex; align-items: baseline; gap: 10px; font-size: calc(12px * var(--mmc-type)); }
-.mmc-glora-lookname { color: var(--mmc-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The shelf. A row of what has been kept, and the press that keeps one more. */
 .mmc-neural-shelf {

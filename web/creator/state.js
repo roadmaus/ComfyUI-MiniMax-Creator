@@ -1541,6 +1541,20 @@ export const serializeGuideLora = (block) => (block?.on
                     picture: block.picture, look: block.look } }
   : {});
 
+/** The roles the pass can play, off the family's table — `guidelora.ROLES`:
+ *  `{key, label, match, blurb, prompt}`, the style role with its grammar too.
+ *  Empty where the family has no guide pass. */
+export const guideLoraRoles = (family = DEFAULT_VIDEO_FAMILY) =>
+  videoFamily(family).capabilities?.guide_lora?.roles ?? [];
+
+/** The role a file plays, by its name — the first row whose `match` is in the
+ *  stem, lower-cased — or null for a file the table does not know. */
+export function guideLoraRole(name, family = DEFAULT_VIDEO_FAMILY) {
+  const stem = String(name ?? "").split("/").pop().toLowerCase();
+  if (!stem) return null;
+  return guideLoraRoles(family).find((role) => stem.includes(role.match)) ?? null;
+}
+
 /** The style file's caption grammar, off the family's table: `{match, prefix,
  *  picture_form}`. Mirrors `guidelora.STYLE`; null where the family has none. */
 export const guideLoraStyle = (family = DEFAULT_VIDEO_FAMILY) =>
