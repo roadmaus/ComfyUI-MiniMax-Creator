@@ -20,6 +20,16 @@ One call and not one per LoRA, because a stack fuses: several adapters on one
 layer concatenate along the rank axis into a single pair, so ten LoRAs cost one
 extra matmul per layer rather than ten.
 
+**Measured against core's, 2026-09-13, on the lab's int8 ConvRot bakes.** Core
+no longer requantizes the way that argument assumes: since its June fixes it
+dequantizes a touched layer, adds the delta and requantizes with fresh
+stochastic rounding, so the whole layer's rounding is re-rolled to carry a
+delta a fifth its size. Same seed, same card, two loaders: two different shots.
+This stack keeps the bake and adds the delta exactly, and stays the default;
+`settings.lora_loader` lets a machine pick core's to match a result made
+outside this pack, and the guide LoRA pass always takes core's, since that is
+what its files were published against (`h3/guidepass.MiniMaxH3GuideModel`).
+
 **Every other family goes through core's loader**, which is `registry.LORA_STACK`'s
 whole content: the vendored stack is an argument about H3's weights, not about
 LoRAs, and a second family's adapters are core's to place. Which is also the

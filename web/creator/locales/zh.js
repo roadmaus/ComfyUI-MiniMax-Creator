@@ -2119,4 +2119,11 @@ export const zh = {
  "Pick another look…": "选择另一个风格…",
  "Pick a look from the style atlas…": "从风格图集选择风格…",
  "A name here resolves the style from the words alone, and the model stops looking at the picture.": "这里出现名称会让模型仅凭文字确定风格，不再参考图片。",
+ "LoRA loader": "LoRA 加载器",
+ "Which loader puts an H3 piece's LoRAs on a quantized checkpoint.": "用哪个加载器把 H3 作品的 LoRA 加到量化检查点上。",
+ "The pack's own stack": "本包自带的堆栈",
+ "Keeps the quantized checkpoint exactly as baked and runs each file as an exact branch beside it. Ports adaLN between dense and curve checkpoints, fuses a stack into one branch, and carries the per-file audio dial.": "保持量化检查点与烘焙时完全一致，并把每个文件作为精确的分支在旁边运行。在 dense 与 curve 检查点之间移植 adaLN，把堆栈融合为一个分支，并保留每个文件的音频旋钮。",
+ "ComfyUI's loader": "ComfyUI 的加载器",
+ "What every published workflow runs on: each layer a file touches is dequantized, patched and requantized with fresh rounding, so the base under a LoRA is not quite the one you loaded and the same seed can land on a different shot. Pick this to match a result made outside this pack.": "所有已发布的工作流都跑在它上面：文件触及的每一层都会被反量化、打补丁、再重新量化并重新取整，因此 LoRA 之下的基座与你加载的不完全相同，同一个种子可能落到不同的镜头。想要与本包之外做出的结果对齐时选它。",
+ "Read when a render is queued. The guide LoRA pass always uses ComfyUI's loader, the one its files were published against.": "在排队渲染时读取。引导 LoRA 通道始终使用 ComfyUI 的加载器，也就是其文件发布时所针对的那个。",
 };

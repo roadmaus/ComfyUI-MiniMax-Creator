@@ -2118,4 +2118,11 @@ export const ko = {
  "Pick another look…": "다른 룩 선택…",
  "Pick a look from the style atlas…": "스타일 아틀라스에서 룩 선택…",
  "A name here resolves the style from the words alone, and the model stops looking at the picture.": "여기에 이름이 있으면 글만으로 스타일이 정해져 모델이 그림을 보지 않게 됩니다.",
+ "LoRA loader": "LoRA 로더",
+ "Which loader puts an H3 piece's LoRAs on a quantized checkpoint.": "H3 작품의 LoRA를 양자화된 체크포인트에 올리는 로더.",
+ "The pack's own stack": "팩 자체 스택",
+ "Keeps the quantized checkpoint exactly as baked and runs each file as an exact branch beside it. Ports adaLN between dense and curve checkpoints, fuses a stack into one branch, and carries the per-file audio dial.": "양자화된 체크포인트를 구운 그대로 두고 각 파일을 그 옆에서 정확한 브랜치로 실행합니다. dense와 curve 체크포인트 사이에서 adaLN을 이식하고, 스택을 하나의 브랜치로 융합하며, 파일별 오디오 다이얼을 유지합니다.",
+ "ComfyUI's loader": "ComfyUI 로더",
+ "What every published workflow runs on: each layer a file touches is dequantized, patched and requantized with fresh rounding, so the base under a LoRA is not quite the one you loaded and the same seed can land on a different shot. Pick this to match a result made outside this pack.": "공개된 모든 워크플로가 이것으로 동작합니다. 파일이 건드리는 각 레이어는 역양자화·패치·재양자화되며 반올림도 새로 하므로, LoRA 아래의 베이스가 불러온 것과 완전히 같지 않고 같은 시드가 다른 샷에 도착할 수 있습니다. 이 팩 밖에서 만든 결과와 맞추려면 이것을 고르세요.",
+ "Read when a render is queued. The guide LoRA pass always uses ComfyUI's loader, the one its files were published against.": "렌더를 큐에 넣을 때 읽힙니다. 가이드 LoRA 패스는 항상 ComfyUI 로더를 사용합니다. 그 파일들이 공개될 때 기준으로 삼은 로더입니다.",
 };

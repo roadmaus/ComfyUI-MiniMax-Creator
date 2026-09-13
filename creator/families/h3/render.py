@@ -361,6 +361,11 @@ class H3(base.Family):
             # `accel.opening` — and the distill file is already out of the
             # piece, so the lead model is the first output, unpatched twice.
             inputs["hold_lora"] = run.lora
+        if settings.lora_loader() != settings.DEFAULTS["lora_loader"]:
+            # The loader is a machine setting, and a setting read behind the
+            # node is invisible to the cache — so it rides as an input, and
+            # only off its default, so every render before it keeps its key.
+            inputs["lora_loader"] = settings.lora_loader()
         # The VAEs are wired into the encoder only when this segment actually
         # encodes with them — a keyframe or a sound seam. A text-only segment
         # touches neither until decode, and a decode node runs after sampling

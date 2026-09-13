@@ -6,6 +6,17 @@ exactly as it was written, wall of text and all.
 
 ## Unreleased
 
+**Settings: which loader puts H3's LoRAs on.** The pack's vendored stack stays
+the default — it keeps the quantized checkpoint exactly as baked and runs each
+file as an exact branch — and a new choice under Rendering switches a machine
+to ComfyUI's own loader, which dequantizes, patches and requantizes every layer
+a file touches. Measured on int8 ConvRot: the two land the same seed on
+different shots, because core's fresh rounding changes the base under every
+LoRA. Pick core's to match a result made outside this pack. The guide LoRA
+pass is not on the switch: its files were published against core's loader and
+it always uses that, which is what closed the gap to the published
+style-transfer results.
+
 **Guide LoRA pass: a pill on H3's sampler row that finishes a render through
 a file trained to map one video to another.** Alissonerdx's `minimax_h3_lms`
 sharpener and `minimax_h3_style_transfer` are rank-64 LoRAs over Ref2VA

@@ -128,6 +128,12 @@ check("a null is the default", settings.clean({"seam_handoff": None})["seam_hand
 refuses("a road that does not exist", {"seam_handoff": "pixels"}, "one of")
 refuses("the old boolean", {"seam_handoff": True}, "one of")
 
+check("the LoRA loader is the vendored stack by default", settings.clean({})["lora_loader"], "vendored")
+check("...and either loader is accepted",
+      [settings.clean({"lora_loader": which})["lora_loader"] for which in settings.LORA_LOADERS],
+      list(settings.LORA_LOADERS))
+refuses("a loader that does not exist", {"lora_loader": "kohya"}, "one of")
+
 
 # The reference cache's two numbers. Both are magnitudes with a meaningful
 # zero, which is the thing to hold down: 0 GB is not "no cache", it is the

@@ -855,6 +855,50 @@ class SettingsPage {
    * shot inherits and adds to again. Per machine like the seam handoff: it is
    * a statement about how a pass is read, not about the piece. H3 only.
    */
+  /**
+   * Which loader puts an H3 piece's LoRAs on its quantized checkpoint. Per
+   * machine like the seam handoff. Measured 2026-09-13 on int8 ConvRot:
+   * ComfyUI's loader requantizes every layer a file touches, so the same seed
+   * lands on a different shot; the vendored stack keeps the bake. The guide
+   * LoRA pass is not on this switch — its files were published against
+   * ComfyUI's loader and it always uses that.
+   */
+  renderLoraLoader() {
+    const current = this.settings.lora_loader || "vendored";
+    const rows = [
+      { value: "vendored", label: "The pack's own stack",
+        note: "Keeps the quantized checkpoint exactly as baked and runs each file as an "
+            + "exact branch beside it. Ports adaLN between dense and curve checkpoints, "
+            + "fuses a stack into one branch, and carries the per-file audio dial." },
+      { value: "core", label: "ComfyUI's loader",
+        note: "What every published workflow runs on: each layer a file touches is "
+            + "dequantized, patched and requantized with fresh rounding, so the base "
+            + "under a LoRA is not quite the one you loaded and the same seed can land "
+            + "on a different shot. Pick this to match a result made outside this pack." },
+    ];
+    return this.section("Rendering", "LoRA loader",
+      "Which loader puts an H3 piece's LoRAs on a quantized checkpoint.",
+      [
+        el("div", { class: "mmc-set-choices" }, rows.map((row) => el("button", {
+          class: "mmc-opt mmc-set-opt",
+          "aria-checked": row.value === current,
+          onclick: () => row.value !== current && this.set({ lora_loader: row.value }),
+        }, [
+          el("span", { class: "mmc-radio" }),
+          el("span", { class: "mmc-set-opt-text" }, [
+            el("span", { class: "mmc-set-opt-label", text: t(row.label) }),
+            el("span", { class: "mmc-set-opt-note", text: t(row.note) }),
+          ]),
+        ]))),
+        el("div", { class: "mmc-set-foot" }, [
+          el("span", {
+            text: t("Read when a render is queued. The guide LoRA pass always uses "
+                + "ComfyUI's loader, the one its files were published against."),
+          }),
+        ]),
+      ]);
+  }
+
   renderLatentSeams() {
     const current = this.settings.seam_handoff || "latent";
     const rows = [
@@ -1129,7 +1173,7 @@ class SettingsPage {
     const leadIn = this.settings.advanced === true || Number(this.settings.turbo_lead_in) > 0
       ? this.renderLeadIn() : [];
     return [this.renderAdvanced(), this.renderPreviews(), this.renderPreviewSize(),
-      ...leadIn, this.renderLatentSeams(), this.renderMotionGate(), this.renderNeural(),
+      ...leadIn, this.renderLatentSeams(), this.renderLoraLoader(), this.renderMotionGate(), this.renderNeural(),
       this.renderRefCache(),
       this.section("Nodes", "Flow shift pills",
       "Whether the sampler row offers H3's two flow shifts — the video and audio "
