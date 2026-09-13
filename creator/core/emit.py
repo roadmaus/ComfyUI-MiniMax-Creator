@@ -594,8 +594,12 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
     # the refiner: it keeps the size the passes were written at, and what it
     # hands on is what those two should work from. See `emit_finish`.
     if finishing:
+        # The render's own seed, not the first card's: a card's seed is the
+        # handle on that card's generation, and the finishing pass is over the
+        # whole reel — so a pinned card keeps its take cached while the pass
+        # can still be re-rolled from the node.
         reel = family.emit_finish(graph, links, weights, sampling, acceleration,
-                                  compiled, reel, finish, run, seed_for(0))
+                                  compiled, reel, finish, run, sampling.seed)
 
     if redetailing:
         from .. import redetailpass
