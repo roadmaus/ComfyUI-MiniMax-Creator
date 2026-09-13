@@ -100,6 +100,27 @@ check("a distill disabled in the stack is not worn",
 check("under VDN the dropped distill stays out",
       gl.Request.of(turbo, Run(dropped=DISTILL)).entries, [{"name": GUIDE, "strength": 1.3}])
 
+# The published distill, when models/loras holds one: worn at its own strength
+# in front of the guide, whatever the piece's turbo says — and under VDN too,
+# since it is the pass's file and not the piece's.
+PUBLISHED = "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+INSTALLED = ["other/thing.safetensors", DISTILL, "H3/" + PUBLISHED]
+check("the published distill is picked by name, case-insensitively, wherever it sits",
+      gl.pick_distill(INSTALLED + ["x/MiniMax_H3_REF2V_Turbo_8step.safetensors"]),
+      "H3/" + PUBLISHED)
+check("nothing published installed is empty", gl.pick_distill([DISTILL, "a.safetensors"]), "")
+check("with the published distill installed the pass wears it, then the guide",
+      gl.Request.of(turbo, installed=INSTALLED).entries,
+      [{"name": "H3/" + PUBLISHED, "strength": gl.DISTILL_STRENGTH},
+       {"name": GUIDE, "strength": 1.3}])
+check("...with turbo off too",
+      gl.Request.of({**turbo, "turbo": {"on": False}}, installed=INSTALLED).entries,
+      [{"name": "H3/" + PUBLISHED, "strength": gl.DISTILL_STRENGTH},
+       {"name": GUIDE, "strength": 1.3}])
+check("...and under VDN", gl.Request.of(turbo, Run(dropped=DISTILL), INSTALLED).entries,
+      [{"name": "H3/" + PUBLISHED, "strength": gl.DISTILL_STRENGTH},
+       {"name": GUIDE, "strength": 1.3}])
+
 # --- the grid ----------------------------------------------------------------------------
 
 check("the grid", [gl.padded_frames(n) for n in (1, 5, 6, 22, 23, 102, 124)],

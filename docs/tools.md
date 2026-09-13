@@ -310,10 +310,14 @@ put in the prompt box for you — the sharpener's published one, or the trigger
 words on the file's card; a style file wants the style written there instead. Every written pass is
 then generated again from noise, the whole schedule, with itself encoded and
 pinned at frame 0 as one guide block, under the file. It runs at the size the
-pass was written, on the piece's own sampler row — under turbo, the turbo row
-with the distill worn beside the guide file, which is the published rig — and
-on the checkpoint the file was trained against whatever the cards route to.
-The soundtrack rides through untouched.
+pass was written, on its own rig rather than the piece's: the published one —
+8 steps of euler on the checkpoints' own shifts, with the distill the files
+were trained against (`minimax_h3_ref2v_turbo_4step`, any `ref2v…turbo` file
+in `models/loras`) at 1.0 beside the guide file — and on the checkpoint the
+file was trained against whatever the cards route to. Without that distill
+installed the piece's own turbo file stands in, and the pass is measurably
+under-driven: a style comes through by half, a sharpen barely. The
+soundtrack rides through untouched.
 
 It runs over the whole reel after the last pass and before ReDetail and the
 neural refiner, never inline at a seam: a sharpened tail handed to the next

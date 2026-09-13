@@ -6,14 +6,16 @@ Nothing is sampled and no weights are loaded: this is the emitted subgraph. The
 claims worth pinning are the ones a wrong graph would fail silently on — that
 the pass sits after the whole reel and before ReDetail and the refiner, that it
 samples on the checkpoint the file was trained against even when no card routes
-there, that its stack is the piece's distill plus the guide file and nothing
-else, that its row is the piece's and its seed the render's, and that a piece
-which never asked emits exactly the graph it always did.
+there, that its stack is the published distill where one is installed — else
+the piece's — plus the guide file and nothing else, that its row is its own
+and its seed the render's, and that a piece which never asked emits exactly
+the graph it always did.
 
 Skips itself with a message if ComfyUI cannot be imported.
 """
 
 import asyncio
+import contextlib
 import importlib
 import json
 import os
@@ -112,6 +114,21 @@ def video(data, seed=100, steps=20, sampler="res_multistep", scheduler="simple")
                        sampler_name=sampler, scheduler=scheduler)).expand
 
 
+@contextlib.contextmanager
+def installed_loras(names):
+    """models/loras as the pass sees it: `render.finish_request` asks
+    `folder_paths` what is installed, and the test machine has nothing."""
+    import folder_paths
+
+    real = folder_paths.get_filename_list
+    folder_paths.get_filename_list = lambda folder: list(names) if folder == "loras" \
+        else real(folder)
+    try:
+        yield
+    finally:
+        folder_paths.get_filename_list = real
+
+
 def normalised(graph):
     text = json.dumps(graph, sort_keys=True)
     prefix = next(iter(graph)).rsplit(".", 1)[0] + "."
@@ -178,9 +195,9 @@ def upstream(graph, link, want):
 check("the pass's model is the stacked one, behind the patches",
       upstream(graph, pass_inputs["model"], model_id), True)
 check("the prompt is the caption", pass_inputs["prompt"], CAPTION)
-check("its row is the piece's",
+check("its row is its own, not the piece's",
       {key: pass_inputs[key] for key in ("steps", "cfg", "sampler_name", "scheduler")},
-      {"steps": 20, "cfg": 1.0, "sampler_name": "res_multistep", "scheduler": "simple"})
+      {key: guidelora.ROW[key] for key in ("steps", "cfg", "sampler_name", "scheduler")})
 check("its seed is the render's", pass_inputs["seed"], 100)
 check("a re-rolled piece seeds it differently",
       by_class(video(piece(ON), seed=101))[PASS][0][1]["seed"], 101)
@@ -189,17 +206,29 @@ check("the encoder and the VAE are the render's own",
       (kinds["MiniMaxH3Reel"][0][1]["vae"] and [kinds["CLIPLoader"][0][0], 0],
        kinds["MiniMaxH3Reel"][0][1]["vae"]))
 
-# The stack under turbo: the piece's distill entry as it sits in the piece's
-# stack, then the guide file — and nothing else the piece wears.
+# The stack under turbo, with no published distill installed: the piece's
+# distill entry as it sits in the piece's stack, then the guide file — and
+# nothing else the piece wears. The row stays the pass's own.
 turbo = piece(ON, turbo={"on": True, "lora": DISTILL, "quality": "medium"},
               loras=[{"name": DISTILL, "strength": 0.6, "audio": 0.5},
                      {"name": "h3/some_character.safetensors", "strength": 0.8}])
 kinds = by_class(video(turbo, steps=8, sampler="euler", scheduler="beta"))
-check("under turbo the stack is the distill then the guide",
+check("under turbo the stack is the piece's distill then the guide",
       json.loads(kinds[MODEL][0][1]["loras"]),
       [{"name": DISTILL, "strength": 0.6, "audio": 0.5}, {"name": GUIDE, "strength": 1.0}])
-check("...on the turbo row", (kinds[PASS][0][1]["steps"], kinds[PASS][0][1]["scheduler"]),
-      (8, "beta"))
+check("...still on the pass's own row",
+      (kinds[PASS][0][1]["steps"], kinds[PASS][0][1]["scheduler"]),
+      (guidelora.ROW["steps"], guidelora.ROW["scheduler"]))
+
+# With the published distill installed the pass wears that at 1.0 instead,
+# whatever the piece's turbo says.
+PUBLISHED = "h3/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+with installed_loras([PUBLISHED, DISTILL]):
+    kinds = by_class(video(turbo, steps=8, sampler="euler", scheduler="beta"))
+check("with the published distill installed the pass wears it",
+      json.loads(kinds[MODEL][0][1]["loras"]),
+      [{"name": PUBLISHED, "strength": guidelora.DISTILL_STRENGTH},
+       {"name": GUIDE, "strength": 1.0}])
 
 # The strength and the checkpoint are the block's; the strength is clamped.
 kinds = by_class(video(piece({**ON, "strength": 5, "checkpoint": "fl2va"})))
@@ -209,13 +238,14 @@ check("the checkpoint may be the plain one", kinds[MODEL][0][1]["checkpoint"], "
 check("...and then only the plain one is loaded", sorted(loaders(kinds)),
       ["h3/fl2va.safetensors"])
 
-# The sigma shift sits between the stack and the pass when the row asks for one.
+# The piece's flow shift does not reach the pass: it samples on the
+# checkpoints' own shifts, so no shift node sits between the stack and it.
 shifted = json.loads(piece(ON))
 shifted["sampling"] = {"shift_video": 6, "shift_audio": 3}
 kinds = by_class(video(json.dumps(shifted)))
 shift = [inputs for _, inputs in kinds.get("MiniMaxH3SigmaShift", [])
          if inputs["model"] == [kinds[MODEL][0][0], 0]]
-check("the flow shift goes on after the stack", len(shift), 1)
+check("the piece's flow shift stays off the pass", len(shift), 0)
 
 # The picture: a look's frame as <Picture 1>, only written when there is one.
 check("a sharpen writes no picture input", "picture" in pass_inputs, False)

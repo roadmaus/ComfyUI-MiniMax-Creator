@@ -17,7 +17,7 @@ nothing outside an expanded graph ever sees.
 """
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import comfy.sample
 
@@ -786,7 +786,9 @@ class H3(base.Family):
     finishes = True
 
     def finish_request(self, data, run):
-        request = guidelora.Request.of(data, run)
+        import folder_paths
+
+        request = guidelora.Request.of(data, run, folder_paths.get_filename_list("loras"))
         return request if request else None
 
     def finish_routes(self, where, finish):
@@ -808,14 +810,17 @@ class H3(base.Family):
 
         # The stack goes on first, then the same three patches every sampler
         # in this module runs behind — see `MiniMaxH3GuideModel` for why the
-        # order is the segment node's.
-        knobs = {"loader": finish.loader} \
-            if finish.loader != guidelora.DEFAULT_LOADER else {}
+        # order is the segment node's. On the pass's own row: the checkpoints'
+        # own shifts and its own step count, whatever the piece's pills say.
         stacked = graph.node(
             guidepass.MODEL_NODE, model=getattr(links, finish.checkpoint),
             loras=json.dumps(finish.entries, sort_keys=True),
-            checkpoint=finish.checkpoint, **knobs).out(0)
-        model = patched(graph, stacked, sampling, acceleration, weights)
+            checkpoint=finish.checkpoint).out(0)
+        own = replace(
+            sampling, steps=guidelora.ROW["steps"],
+            shift_video=guidelora.ROW["shift_video"],
+            shift_audio=guidelora.ROW["shift_audio"])
+        model = patched(graph, stacked, own, acceleration, weights)
         return guidepass.emit(graph, model, links, sampling, reel, finish, seed)
 
     def emit_motion_fix(self, graph, links, payload, compiled, written, latent,

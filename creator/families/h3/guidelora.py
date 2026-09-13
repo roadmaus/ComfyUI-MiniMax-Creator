@@ -37,6 +37,8 @@ the honest reading of "run this pass the way this piece samples".
 No torch, no ComfyUI: `guidepass.py` is what loads the file.
 """
 
+import re
+
 from . import declare
 
 # The blob key. One block on the piece, like `neural`; absent while off, so a
@@ -84,20 +86,29 @@ STYLE = {
 }
 
 
-# Which loader puts the pass's stack on the checkpoint. "stack" is the pack's
-# vendored H3 stack (`lora.apply`), which runs a file on a quantized layer as a
-# live branch; "core" is ComfyUI's own `add_patches`, the loader the published
-# workflows use. A lab knob until one is measured to be right: the two guide
-# files came back near-inert through "stack" on the lab's int8 checkpoints
-# where the same files through core nodes transferred cleanly (2026-09-13).
-LOADERS = ("stack", "core")
-DEFAULT_LOADER = "stack"
+# The rig the pass samples on: its own, not the piece's. Measured on the lab
+# 2026-09-13 with the comic-ink look: under the piece's turbo preset (the
+# lightx2v file at 0.6, shift 6, beta) the style file half-engaged — ink on the
+# wall, the fur and the plant left photographic — on either schedule; under
+# the published rig it transferred whole, on beta or simple alike. What decided
+# it was the distillation the pass wears: the file the author trained and
+# published against, `minimax_h3_ref2v_turbo_4step` at 1.0, on the
+# checkpoints' own shifts. So the pass looks for that file in models/loras and
+# wears it when it is there; without it the piece's own turbo entry is the
+# fallback, half-driven and said so by the pill.
+DISTILL_MATCH = r"ref2v.*turbo"
+DISTILL_STRENGTH = 1.0
+ROW = {"steps": 8, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple",
+       "shift_video": 12.0, "shift_audio": 3.0}
 
-# How the reference picture is sized: "max" is the cast pipeline's 2048 short
-# edge, "match" scales it to the target's pixel area — what the published
-# workflow feeds. Same status as `LOADERS`.
-REF_SIZES = ("max", "match")
-DEFAULT_REF_SIZE = "max"
+
+def pick_distill(installed):
+    """The published distill file among `installed` (models/loras), or ""."""
+    pattern = re.compile(DISTILL_MATCH, re.IGNORECASE)
+    for name in installed or ():
+        if pattern.search(str(name).split("/")[-1]):
+            return str(name)
+    return ""
 
 
 def caption_for(name):
@@ -130,11 +141,10 @@ class Request:
     """
 
     __slots__ = ("on", "lora", "strength", "prompt", "checkpoint", "picture", "look",
-                 "loader", "ref_size", "entries")
+                 "entries")
 
     def __init__(self, on=False, lora="", strength=DEFAULT_STRENGTH, prompt="",
-                 checkpoint=DEFAULT_CHECKPOINT, picture="", look="", loader=DEFAULT_LOADER,
-                 ref_size=DEFAULT_REF_SIZE, entries=None):
+                 checkpoint=DEFAULT_CHECKPOINT, picture="", look="", entries=None):
         # A real boolean only, on both sides of the wire.
         self.on = on is True
         # Strings only, like the pill: a number where a name should be is a
@@ -149,27 +159,23 @@ class Request:
         self.picture = picture.strip() if isinstance(picture, str) else ""
         # What the look is called, for the pill; nothing here reads it.
         self.look = look.strip() if isinstance(look, str) else ""
-        # Which loader puts the stack on, and how big the picture goes in. Lab
-        # knobs (see LOADERS / REF_SIZES); the defaults are what the pill writes.
-        self.loader = loader if loader in LOADERS else DEFAULT_LOADER
-        self.ref_size = ref_size if ref_size in REF_SIZES else DEFAULT_REF_SIZE
         self.entries = list(entries or [])
 
     @classmethod
-    def of(cls, data, run=None):
+    def of(cls, data, run=None, installed=()):
         """The blob's block, or an off request where there is none.
 
         `run` is the family's per-queue context (`render.LeadIn`): under VDN-H3
         the distill file is left out of every stack because the stage's own
         adapter is the distillation, and this pass follows the same rule.
+        `installed` is models/loras, for the distill the pass wears.
         """
         raw = (data or {}).get(KEY) if isinstance(data, dict) else None
         if not isinstance(raw, dict):
             return cls()
         request = cls(on=raw.get("on"), lora=raw.get("lora"), strength=raw.get("strength"),
                       prompt=raw.get("prompt"), checkpoint=raw.get("checkpoint"),
-                      picture=raw.get("picture"), look=raw.get("look"),
-                      loader=raw.get("loader"), ref_size=raw.get("ref_size"))
+                      picture=raw.get("picture"), look=raw.get("look"))
         if request.on and not request.lora:
             raise ValueError(
                 "The guide LoRA pass is switched on and no file has been picked. "
@@ -177,39 +183,44 @@ class Request:
                 "or switch the pass off.")
         if request.on and not request.prompt:
             request.prompt = caption_for(request.lora)
-        request.entries = entries(data, request, run)
+        request.entries = entries(data, request, run, installed)
         return request
 
     def __bool__(self):
         return self.on
 
     def as_dict(self):
-        # The pill's shape, without the lab knobs: what the frontend writes.
         return {"on": self.on, "lora": self.lora, "strength": self.strength,
                 "prompt": self.prompt, "checkpoint": self.checkpoint,
                 "picture": self.picture, "look": self.look}
 
     def __eq__(self, other):
-        return isinstance(other, Request) and self.as_dict() == other.as_dict() \
-            and (self.loader, self.ref_size) == (other.loader, other.ref_size)
+        return isinstance(other, Request) and self.as_dict() == other.as_dict()
 
     def __repr__(self):
         return f"Request({self.as_dict()})"
 
 
-def entries(data, request, run=None):
-    """The LoRA stack the pass wears: the piece's turbo distill, then the guide.
+def entries(data, request, run=None, installed=()):
+    """The LoRA stack the pass wears: the published distill, then the guide.
 
-    The distill entry is taken *from the piece's stack*, not rebuilt: the turbo
-    switch put it there with the preset's strength and the user's soundtrack
-    dial, and those are the numbers every pass on this piece samples under. A
-    turbo switched on that names no file (a merged checkpoint) has nothing to
-    add. Under VDN the file is dropped from the piece (`run.dropped`) and so
-    from here.
+    The distill is the file the guide files were trained against, found in
+    models/loras (`pick_distill`), at the strength the published workflow loads
+    it. Without it the piece's own turbo entry stands in, as it sits in the
+    piece's stack (strength, soundtrack dial and claim intact) — measured to
+    half-drive the file, but the honest reading of "finish this piece the way it
+    samples". A turbo switched on that names no file (a merged checkpoint) has
+    nothing to add. Under VDN the file is dropped from the piece (`run.dropped`)
+    and so from here; the published distill is not, since it is the pass's own.
     """
     if not request.on:
         return []
     stack = []
+    published = pick_distill(installed)
+    if published:
+        stack.append({"name": published, "strength": DISTILL_STRENGTH})
+        stack.append({"name": request.lora, "strength": request.strength})
+        return stack
     turbo = (data or {}).get("turbo") if isinstance(data, dict) else None
     distill = str((turbo or {}).get("lora") or "").strip() if isinstance(turbo, dict) \
         and turbo.get("on") is True else ""
