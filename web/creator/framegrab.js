@@ -26,6 +26,26 @@ export function openFrameGrab({ path }) {
   return new Promise((resolve) => new FrameGrab(path, resolve).mount());
 }
 
+/**
+ * The frame a decoded <video> is sitting on, saved as a PNG under input/.
+ * -> `{path}`, input-relative, or throws.
+ *
+ * Full resolution, not a preview's: this frame is about to become a
+ * generation's input, and downscaling it here would be the one lossy step
+ * nobody asked for. Shared with the picture editor, whose clip transport is
+ * the other place somebody scrubs to the frame they mean (#81).
+ */
+export async function saveFrame(video, path) {
+  if (!video?.videoWidth) throw new Error(t("could not read the frame"));
+  const canvas = document.createElement("canvas");
+  drawFrame(canvas, video, video.videoHeight);
+  const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
+  if (!blob) throw new Error(t("could not read the frame"));
+  const stem = path.split("/").pop().replace(/\.[^.]+$/, "");
+  const name = `${stem}_t${(video.currentTime || 0).toFixed(2)}s.png`;
+  return upload(new File([blob], name, { type: "image/png" }), SUBFOLDER);
+}
+
 class FrameGrab {
   constructor(path, resolve) {
     this.path = path;
@@ -104,9 +124,7 @@ class FrameGrab {
   }
 
   draw() {
-    // Full resolution, not the 720px preview default: this frame is about to
-    // become a generation's input, and downscaling it here would be the one
-    // lossy step nobody asked for.
+    // Full resolution, as `saveFrame` paints it, so what is shown is what is saved.
     drawFrame(this.stage, this.media, this.media.videoHeight || 720);
   }
 
@@ -120,12 +138,7 @@ class FrameGrab {
     this.use.textContent = t("Saving…");
     this.use.disabled = true;
     try {
-      this.draw();
-      const blob = await new Promise((done) => this.stage.toBlob(done, "image/png"));
-      if (!blob) throw new Error(t("could not read the frame"));
-      const stem = this.path.split("/").pop().replace(/\.[^.]+$/, "");
-      const name = `${stem}_t${(this.media.currentTime || 0).toFixed(2)}s.png`;
-      const saved = await upload(new File([blob], name, { type: "image/png" }), SUBFOLDER);
+      const saved = await saveFrame(this.media, this.path);
       this.close({ path: saved.path });
     } catch (error) {
       this.use.textContent = t("failed — {error}", { error: String(error.message || error) });

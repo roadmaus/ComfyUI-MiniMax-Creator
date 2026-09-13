@@ -6,6 +6,22 @@ exactly as it was written, wall of text and all.
 
 ## Unreleased
 
+**Use one frame of a clip instead of the clip.** A clip attached for the one
+frame in it that is the reference cost every frame of it through every
+sampling step — and the picture editor's scrub on a clip looked like the way
+to choose one, without being one (#81). It is now: "Use this frame instead"
+on the transport saves the frame on the playhead as a PNG at the clip's own
+resolution and attaches it in the clip's place, with the window set there kept
+on it. On a card the still takes an image handle and every sentence that cited
+the clip is rewritten to it; in the pool the row keeps its `ref-N`. A member
+built out of the clip keeps the picture as a face and loses it as motion or
+voice.
+
+**A framing and a plate's panels are written to the blob.** Neither was: a
+window drawn in the picture editor rendered whole and was forgotten on reload,
+and a cut-out came back as the flat composite with its panels' handles gone.
+Found on the way to keeping the frame's window above.
+
 **Pasted names become chips.** A pasted `@anna`, `@img-1` or spoken line used
 to sit as plain text until the shot was closed and reopened: only `build()`
 draws chips, and paste went through the keystroke path, which never asks for

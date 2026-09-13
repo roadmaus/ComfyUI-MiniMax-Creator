@@ -29,6 +29,7 @@
 import { el, icon, mountOverlay } from "./dom.js";
 import { viewUrl, isFramed, isWindowed, cutPanel, buildPlate } from "./api.js";
 import { greyField } from "./subject.js";
+import { saveFrame } from "./framegrab.js";
 import { t } from "./i18n.js";
 
 export { isFramed } from "./api.js";
@@ -78,6 +79,10 @@ export function cropLabel(crop) {
  * @param {?object} [options.cutout]  offer the scissors: `{plate, cut, points}`
  *   — `state.plateSpec`'s answer, whether the picture is cut now, and the
  *   clicks so far as `[{x, y, include}]` in fractions of the framed picture.
+ * @param {boolean} [options.frame]  on a clip, offer "use this frame instead":
+ *   the answer is then `{frame: {path, time}, crop}` — the frame on the
+ *   playhead saved as a PNG, with the window as set — and the host decides
+ *   what becomes of the clip.
  *   Null (a clip, a family that cannot cut) leaves the editor to the framing.
  * @returns {Promise<?{crop:?object, cut?:boolean, points?:Array}>} null if
  *   cancelled; `crop` null for the picture whole; `cut` and `points` only
@@ -94,13 +99,14 @@ export function openPicture(options) {
  * given and the asset may be cut, and when the answer says cut, builds the
  * plate here. -> null on cancel, else `{crop, cut, points, plate}` where
  * `plate` is `{path, panels: [{path, cut, points, crop}]}` for a cutout and
- * null for the picture as it is.
+ * null for the picture as it is — or, on a clip a host offered `frame` on,
+ * `{frame: {path, time}, crop}`: one still taken off it, to stand in its place.
  *
  * @param {object} asset   the attached row: `filename`, `kind`, `trim`,
  *   `crop`, and `panels` on a cut-out
  * @param {object} options `plate` (`state.plateSpec`) and `aspect`
  */
-export async function editPicture(asset, { plate = null, aspect = null } = {}) {
+export async function editPicture(asset, { plate = null, aspect = null, frame = false } = {}) {
   const panel = asset.panels?.length === 1 ? asset.panels[0] : null;
   const source = panel?.filename ?? asset.filename;
   // The scissors are there for every still picture, on every surface. What a
@@ -111,8 +117,13 @@ export async function editPicture(asset, { plate = null, aspect = null } = {}) {
     crop: (panel ? panel.crop : asset.crop) ?? null,
     trim: asset.trim ?? null, aspect,
     cutout: cutting ? { plate, cut: Boolean(panel?.cut), points: panel?.points ?? [] } : null,
+    frame: frame && asset.kind === "video",
   });
   if (!result) return null;
+  // A frame taken off a clip is a different file, not a framing of this one:
+  // the host swaps the row for it. The window travels, since it was drawn on
+  // the very frame that was saved.
+  if (result.frame) return { frame: result.frame, crop: result.crop, source, plate: null };
   const answer = { crop: result.crop, cut: Boolean(result.cut), points: result.points ?? [],
                    source, plate: null };
   if (answer.cut) {
@@ -231,6 +242,19 @@ class Picture {
         class: "mmc-crop-scrub",
         onpointerdown: (event) => this.beginScrub(event),
       }, [this.playhead]);
+      // A clip whose one useful frame is the reference: scrubbing here to the
+      // frame and pressing Use kept the clip — every frame of it, through
+      // every sampling step — with a window on it. This saves the frame on the
+      // playhead as a picture instead, and the host puts it where the clip was.
+      if (options.frame) {
+        this.frameButton = el("button", {
+          class: "mmc-ghost mmc-crop-frame-use",
+          title: t("Save the frame on the playhead as a picture, at the clip's own resolution, "
+                 + "and attach it in the clip's place — a still costs a fraction of what a clip "
+                 + "does, and the window set here is kept on it."),
+          onclick: () => this.takeFrame(),
+        }, [icon("image", 13), el("span", { text: t("Use this frame instead") })]);
+      }
     }
 
     this.readout = el("div", { class: "mmc-trim-read" });
@@ -309,7 +333,8 @@ class Picture {
         el("button", { class: "mmc-close", text: "✕", onclick: () => this.close(null) }),
       ]),
       el("div", { class: "mmc-crop-frame" }, [this.stage]),
-      ...(isVideo ? [el("div", { class: "mmc-trim-bar" }, [this.playButton, this.scrub])] : []),
+      ...(isVideo ? [el("div", { class: "mmc-trim-bar" },
+                      [this.playButton, this.scrub, ...(this.frameButton ? [this.frameButton] : [])])] : []),
       this.readout,
       ...(this.cutout ? [el("div", { class: "mmc-crop-cutrow" }, [
         this.cutButton,
@@ -918,6 +943,27 @@ class Picture {
 
   commit() {
     this.close(this.value());
+  }
+
+  /** The frame on the playhead, saved, and handed back with the window. */
+  async takeFrame() {
+    const video = this.source;
+    if (this.saving || !video?.videoWidth) return;
+    this.saving = true;
+    video.pause();
+    const label = this.frameButton.lastChild;
+    const was = label.textContent;
+    label.textContent = t("Saving…");
+    this.frameButton.disabled = true;
+    try {
+      const saved = await saveFrame(video, this.options.path);
+      this.close({ ...this.value(), frame: { path: saved.path, time: video.currentTime || 0 } });
+    } catch (error) {
+      label.textContent = t("failed — {error}", { error: String(error.message || error) });
+      this.frameButton.disabled = false;
+      this.saving = false;
+      setTimeout(() => { if (!this.saving) label.textContent = was; }, 4000);
+    }
   }
 
   close(result) {

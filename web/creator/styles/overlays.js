@@ -329,6 +329,14 @@ export const css = `
   border: 1px solid var(--mmc-line-3); border-radius: 7px; font-size: calc(12.5px * var(--mmc-type));
 }
 .mmc-crop-cut.on { background: color-mix(in srgb, var(--mmc-blue) 22%, transparent); border-color: var(--mmc-blue); color: var(--mmc-strong); }
+/* The still off a clip, on the transport row: the scissors' shape, since it is
+   the same kind of door — out of this file into a derived one. */
+.mmc-crop-frame-use {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px; white-space: nowrap;
+  border: 1px solid var(--mmc-line-3); border-radius: 7px; font-size: calc(12.5px * var(--mmc-type));
+}
+.mmc-crop-frame-use svg { width: 13px; height: 13px; stroke: currentColor; fill: none;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .mmc-crop-cutrow .mmc-ghost:disabled { color: var(--mmc-off); cursor: not-allowed; }
 .mmc-crop-cut svg { width: 13px; height: 13px; stroke: currentColor; fill: none;
   stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

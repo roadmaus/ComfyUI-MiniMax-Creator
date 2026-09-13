@@ -729,11 +729,13 @@ export class CreatorEditor {
       answer = await editPicture(asset, {
         plate: this.plateSpec(),
         aspect: donor?.handle === asset.handle ? null : { ratio: width / height, label: t("shot") },
+        frame: asset.kind === "video" && asset.role === "reference" && !S.isRefMod(asset),
       });
     } catch (error) {
       return this.flash(error.message);
     }
     if (!answer) return;
+    if (answer.frame) return this.useFrame(asset, answer);
     // A reference folds through the sheet, so a plate's panel handles and the
     // cast built on them survive; everything else — a keyframe, a guide, a
     // clip — takes the answer in place.
@@ -744,6 +746,45 @@ export class CreatorEditor {
       this.commit();
     }
     // A framed picture is a different shape, and the canvas may follow it.
+    this.probeKeyframe();
+  }
+
+  /**
+   * One frame of a reference clip, attached as a picture in the clip's place.
+   *
+   * What #81 asked for: a clip attached for the one frame in it that is the
+   * reference costs every frame of it through every sampling step, and the
+   * picture editor's scrub looked like the way to choose one. Now it is. The
+   * clip comes off and the still goes on under an image handle — a handle
+   * says what kind of file it names, so `@vid-1` cannot go on being a picture
+   * — and every sentence that cited the clip is rewritten to the still, the
+   * way recasting rewrites a name. A subject built out of the clip keeps its
+   * dead claim, as any removal leaves it; a still is not the clip's motion.
+   */
+  useFrame(asset, answer) {
+    // Counted with the clip already off, since its file is the one freed.
+    const at = this.state.assets.indexOf(asset);
+    this.state.assets = this.state.assets.filter((a) => a !== asset);
+    const { used, max, filesLeft } = S.capacity(this.state, "image", this.piece);
+    if (used >= max || filesLeft <= 0) {
+      this.state.assets.splice(at, 0, asset);
+      return this.flash(t("No {kind} slots left ({used}/{max} used, {filesLeft} files free of {maxFiles}).",
+        { kind: t("image"), used, max, filesLeft, maxFiles: S.refCaps(this.piece).files }));
+    }
+    this.releaseHere(asset.handle);
+    const still = {
+      handle: S.nextHandle(this.state, "image"),
+      kind: "image", role: "reference", filename: answer.frame.path,
+      ref_size: asset.ref_size ?? "max",
+      ...(answer.crop ? { crop: answer.crop } : {}),
+    };
+    this.state.assets.splice(at, 0, still);
+    const hosts = this.castPiece === this.state
+      ? [this.state]
+      : [this.state, this.castPiece, ...(this.castPiece.segments ?? [])];
+    S.renameSubjectCitations(hosts, asset.handle, still.handle);
+    this.prompt?.setValue(this.state.prompt ?? "");
+    this.commit();
     this.probeKeyframe();
   }
 

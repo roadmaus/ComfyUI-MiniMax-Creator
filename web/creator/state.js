@@ -1854,6 +1854,22 @@ function serializeAssets(assets) {
     // picked back off the folder carries none, and an absent id says nothing
     // rather than something false.
     if (asset.role === "guide" && asset.op) out.op = asset.op;
+    // The framing (`picture.js`), read by `crop.py` wherever the file is; and
+    // a plate's panels, which are what the prompt cites and the picker
+    // re-opens on. Neither was written until 2026-09-13: a window set in the
+    // editor rendered whole and was forgotten on reload, and a cut-out came
+    // back as the flat composite with its panels' handles gone.
+    if (asset.crop) out.crop = { ...asset.crop };
+    if (isPlate(asset)) {
+      out.panels = asset.panels.map((panel) => ({
+        handle: panel.handle, filename: panel.filename,
+        ...(panel.cut ? { cut: true } : {}),
+        ...(panel.takes && panel.takes !== "full" ? { takes: panel.takes } : {}),
+        ...(panel.rect ? { rect: [...panel.rect] } : {}),
+        ...(panel.points?.length ? { points: panel.points.map((p) => ({ ...p })) } : {}),
+        ...(panel.crop ? { crop: { ...panel.crop } } : {}),
+      }));
+    }
     return out;
   });
 }
@@ -5655,6 +5671,29 @@ export function nextPoolHandle(timeline) {
   for (let n = 1; ; n += 1) {
     const handle = `ref-${n}`;
     if (!taken.has(handle)) return handle;
+  }
+}
+
+/**
+ * A pool clip's row, made the row of one still taken off it, in place.
+ *
+ * The pool's handles name no kind — `ref-3` is whatever file sits under it —
+ * so the still keeps the clip's handle and every sentence that cites it. What
+ * only a clip can carry comes off: the segment and the soundtrack, since a
+ * still has neither, and a member's motion or voice claim on it, since a
+ * picture is not a way of moving or a voice. A `from` claim stays — a face is
+ * a face on a still — and so does the window the frame was chosen under,
+ * because it was drawn on the very frame that was saved.
+ */
+export function stillForClip(timeline, asset, path, crop = null) {
+  asset.kind = "image";
+  asset.filename = path;
+  delete asset.trim;
+  delete asset.track;
+  if (crop) asset.crop = crop;
+  else delete asset.crop;
+  for (const subject of timeline.subjects ?? []) {
+    for (const role of ["motion", "voice"]) releaseClaim(subject, asset.handle, role);
   }
 }
 

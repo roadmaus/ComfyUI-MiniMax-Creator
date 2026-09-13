@@ -2139,4 +2139,6 @@ export const ja = {
  "ComfyUI's loader": "ComfyUI のローダー",
  "What every published workflow runs on: each layer a file touches is dequantized, patched and requantized with fresh rounding, so the base under a LoRA is not quite the one you loaded and the same seed can land on a different shot. Pick this to match a result made outside this pack.": "公開されているワークフローはすべてこれで動いています。ファイルが触れる各レイヤーは逆量子化・パッチ・再量子化され、丸めもやり直されるため、LoRA の下のベースは読み込んだものと完全には一致せず、同じシードでも別のショットになることがあります。このパック以外で作られた結果に合わせたいときに選んでください。",
  "Read when a render is queued. The guide LoRA pass always uses ComfyUI's loader, the one its files were published against.": "レンダーをキューに入れた時点で読まれます。ガイド LoRA パスは常に ComfyUI のローダーを使います。そのファイルが公開時に前提としたローダーです。",
+ "Use this frame instead": "代わりにこのフレームを使う",
+ "Save the frame on the playhead as a picture, at the clip's own resolution, and attach it in the clip's place — a still costs a fraction of what a clip does, and the window set here is kept on it.": "再生ヘッド位置のフレームをクリップ自身の解像度で静止画として保存し、クリップの代わりに添付します。静止画のコストはクリップのごく一部で、ここで設定した枠はその静止画に引き継がれます。",
 };

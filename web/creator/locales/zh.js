@@ -2141,4 +2141,6 @@ export const zh = {
  "ComfyUI's loader": "ComfyUI 的加载器",
  "What every published workflow runs on: each layer a file touches is dequantized, patched and requantized with fresh rounding, so the base under a LoRA is not quite the one you loaded and the same seed can land on a different shot. Pick this to match a result made outside this pack.": "所有已发布的工作流都跑在它上面：文件触及的每一层都会被反量化、打补丁、再重新量化并重新取整，因此 LoRA 之下的基座与你加载的不完全相同，同一个种子可能落到不同的镜头。想要与本包之外做出的结果对齐时选它。",
  "Read when a render is queued. The guide LoRA pass always uses ComfyUI's loader, the one its files were published against.": "在排队渲染时读取。引导 LoRA 通道始终使用 ComfyUI 的加载器，也就是其文件发布时所针对的那个。",
+ "Use this frame instead": "改用此帧",
+ "Save the frame on the playhead as a picture, at the clip's own resolution, and attach it in the clip's place — a still costs a fraction of what a clip does, and the window set here is kept on it.": "将播放头处的帧以片段自身的分辨率保存为图片，并附加到片段的位置——静帧的开销只是片段的一小部分，且此处设置的裁切框会保留在其上。",
 };

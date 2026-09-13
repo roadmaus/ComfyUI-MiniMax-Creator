@@ -1295,6 +1295,7 @@ class Timeline {
       answer = await editPicture(asset, {
         plate: this.poolPlate(),
         aspect: width && height ? { ratio: width / height, label: t("canvas") } : null,
+        frame: asset.kind === "video" && !S.isRefMod(asset),
       });
     } catch (error) {
       this.poolError = String(error.message || error);
@@ -1302,6 +1303,7 @@ class Timeline {
       return;
     }
     if (!answer) return;
+    if (answer.frame) return this.usePoolFrame(asset, answer);
     if (asset.kind === "image") {
       this.poolError = null;
       this.foldPoolSheet(asset, [asPick(answer)]);
@@ -1309,6 +1311,17 @@ class Timeline {
     }
     if (answer.crop) asset.crop = answer.crop;
     else delete asset.crop;
+    this.commit();
+    this.renderPool();
+  }
+
+  /** One frame of a pool clip, in the clip's place — the editor's `useFrame`,
+   *  pool-side. A pool handle names no kind, so the row keeps it and every
+   *  citation with it; what a clip alone can carry — a segment, a soundtrack,
+   *  a member's motion or voice — comes off with the clip. */
+  usePoolFrame(asset, answer) {
+    S.stillForClip(this.timeline, asset, answer.frame.path, answer.crop);
+    this.poolError = null;
     this.commit();
     this.renderPool();
   }
