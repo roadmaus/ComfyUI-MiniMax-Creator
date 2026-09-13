@@ -94,15 +94,25 @@ class MiniMaxH3GuideModel(io.ComfyNode):
                             "has one, then the guide file."),
                 io.String.Input("checkpoint",
                     tooltip="Which of H3's checkpoints `model` is, for the claims."),
+                io.Combo.Input("loader", options=list(guidelora.LOADERS),
+                    default=guidelora.DEFAULT_LOADER, optional=True,
+                    tooltip="Which loader puts the stack on: the pack's vendored H3 "
+                            "stack, or ComfyUI's own patcher."),
             ],
             outputs=[io.Model.Output()],
         )
 
     @classmethod
-    def execute(cls, model, loras, checkpoint) -> io.NodeOutput:
+    def execute(cls, model, loras, checkpoint, loader=guidelora.DEFAULT_LOADER) -> io.NodeOutput:
         entries = json.loads(loras) if str(loras or "").strip() else []
         if not entries:
             raise GuidePassError("the guide-LoRA pass was given no file to wear")
+        if loader == "core":
+            rows = lora.stack(entries, checkpoint)
+            if not rows:
+                raise GuidePassError("the guide-LoRA pass's stack claims nothing on "
+                                     f"{checkpoint}")
+            return io.NodeOutput(lora._apply_core(model, rows))
         return io.NodeOutput(lora.apply(model, entries, checkpoint))
 
 
@@ -120,14 +130,19 @@ def _guide(frames, length):
     return out
 
 
-def _reference(image):
-    """A reference picture at the reference pipeline's own size: down-only to
-    the 2048 short edge on the /32 grid, the `max` setting of a cast look —
-    the same arithmetic as `encode.encode_image`, for the same file."""
+def _reference(image, ref_size, target_w, target_h):
+    """A reference picture sized the way a Ref2VA reference is: `max` is
+    down-only to the 2048 short edge, `match` scales it to the target's pixel
+    area — core's `MiniMaxH3ReferenceToVideo` arithmetic, on the /32 grid."""
+    import math
+
     from comfy_extras.nodes_minimax_h3 import CANVAS_MULTIPLE, REF_IMAGE_SHORT_EDGE, _resize
 
     height, width = int(image.shape[1]), int(image.shape[2])
-    scale = min(1.0, REF_IMAGE_SHORT_EDGE / min(width, height))
+    if ref_size == "match":
+        scale = min(1.0, math.sqrt((target_w * target_h) / (width * height)))
+    else:
+        scale = min(1.0, REF_IMAGE_SHORT_EDGE / min(width, height))
     snap = lambda value: max(CANVAS_MULTIPLE, round(value / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
     return _resize(image, snap(width * scale), snap(height * scale), "disabled")
 
@@ -168,13 +183,17 @@ class MiniMaxH3GuidePass(io.ComfyNode):
                     tooltip="A reference picture presented as <Picture 1> beside the "
                             "guide — a look's frame (atlas:000123) or a file under "
                             "input/. The style file reads it."),
+                io.Combo.Input("ref_size", options=list(guidelora.REF_SIZES),
+                    default=guidelora.DEFAULT_REF_SIZE, optional=True,
+                    tooltip="How the picture is sized: the 2048 short edge, or the "
+                            "target's own pixel area."),
             ],
             outputs=[io.Custom(REEL_TYPE).Output(display_name="reel")],
         )
 
     @classmethod
     def execute(cls, model, clip, vae, reel, prompt, seed, steps, cfg, sampler_name,
-                scheduler, picture="") -> io.NodeOutput:
+                scheduler, picture="", ref_size=guidelora.DEFAULT_REF_SIZE) -> io.NodeOutput:
         parts = list(reel or [])
         passes = [index for index, part in enumerate(parts) if "pass" in part]
         if not passes:
@@ -192,7 +211,9 @@ class MiniMaxH3GuidePass(io.ComfyNode):
         # and laid out in front of the target, beside the guide pinned on it.
         items, blocks = [], []
         if str(picture or "").strip():
-            resized = _reference(media.load_image(picture.strip()))
+            first = parts[passes[0]]["pass"]
+            resized = _reference(media.load_image(picture.strip()), ref_size,
+                                 int(first["width"]), int(first["height"]))
             items.append({"type": "image", "data": resized})
             blocks.append({"kind": "image",
                            "latent_h": int(resized.shape[1]) // 16,
@@ -292,8 +313,10 @@ def emit(graph, model, links, sampling, reel, request, seed):
     if request.picture:
         # Only when there is one: an input the graph does not write is an
         # input the node's cache key does not carry, so a sharpen keeps the
-        # key it had before pictures existed.
+        # key it had before pictures existed. The lab knobs likewise.
         inputs["picture"] = request.picture
+        if request.ref_size != guidelora.DEFAULT_REF_SIZE:
+            inputs["ref_size"] = request.ref_size
     return graph.node(
         PASS_NODE, model=model, clip=links.clip, vae=links.vae, reel=reel,
         prompt=request.prompt, seed=seed, steps=sampling.steps, cfg=sampling.cfg,

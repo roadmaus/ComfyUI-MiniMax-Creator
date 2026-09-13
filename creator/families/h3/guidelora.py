@@ -84,6 +84,22 @@ STYLE = {
 }
 
 
+# Which loader puts the pass's stack on the checkpoint. "stack" is the pack's
+# vendored H3 stack (`lora.apply`), which runs a file on a quantized layer as a
+# live branch; "core" is ComfyUI's own `add_patches`, the loader the published
+# workflows use. A lab knob until one is measured to be right: the two guide
+# files came back near-inert through "stack" on the lab's int8 checkpoints
+# where the same files through core nodes transferred cleanly (2026-09-13).
+LOADERS = ("stack", "core")
+DEFAULT_LOADER = "stack"
+
+# How the reference picture is sized: "max" is the cast pipeline's 2048 short
+# edge, "match" scales it to the target's pixel area — what the published
+# workflow feeds. Same status as `LOADERS`.
+REF_SIZES = ("max", "match")
+DEFAULT_REF_SIZE = "max"
+
+
 def caption_for(name):
     """The published caption for the file `name`, or ""."""
     stem = str(name or "").split("/")[-1].lower()
@@ -114,10 +130,11 @@ class Request:
     """
 
     __slots__ = ("on", "lora", "strength", "prompt", "checkpoint", "picture", "look",
-                 "entries")
+                 "loader", "ref_size", "entries")
 
     def __init__(self, on=False, lora="", strength=DEFAULT_STRENGTH, prompt="",
-                 checkpoint=DEFAULT_CHECKPOINT, picture="", look="", entries=None):
+                 checkpoint=DEFAULT_CHECKPOINT, picture="", look="", loader=DEFAULT_LOADER,
+                 ref_size=DEFAULT_REF_SIZE, entries=None):
         # A real boolean only, on both sides of the wire.
         self.on = on is True
         # Strings only, like the pill: a number where a name should be is a
@@ -132,6 +149,10 @@ class Request:
         self.picture = picture.strip() if isinstance(picture, str) else ""
         # What the look is called, for the pill; nothing here reads it.
         self.look = look.strip() if isinstance(look, str) else ""
+        # Which loader puts the stack on, and how big the picture goes in. Lab
+        # knobs (see LOADERS / REF_SIZES); the defaults are what the pill writes.
+        self.loader = loader if loader in LOADERS else DEFAULT_LOADER
+        self.ref_size = ref_size if ref_size in REF_SIZES else DEFAULT_REF_SIZE
         self.entries = list(entries or [])
 
     @classmethod
@@ -147,7 +168,8 @@ class Request:
             return cls()
         request = cls(on=raw.get("on"), lora=raw.get("lora"), strength=raw.get("strength"),
                       prompt=raw.get("prompt"), checkpoint=raw.get("checkpoint"),
-                      picture=raw.get("picture"), look=raw.get("look"))
+                      picture=raw.get("picture"), look=raw.get("look"),
+                      loader=raw.get("loader"), ref_size=raw.get("ref_size"))
         if request.on and not request.lora:
             raise ValueError(
                 "The guide LoRA pass is switched on and no file has been picked. "
@@ -162,12 +184,14 @@ class Request:
         return self.on
 
     def as_dict(self):
+        # The pill's shape, without the lab knobs: what the frontend writes.
         return {"on": self.on, "lora": self.lora, "strength": self.strength,
                 "prompt": self.prompt, "checkpoint": self.checkpoint,
                 "picture": self.picture, "look": self.look}
 
     def __eq__(self, other):
-        return isinstance(other, Request) and self.as_dict() == other.as_dict()
+        return isinstance(other, Request) and self.as_dict() == other.as_dict() \
+            and (self.loader, self.ref_size) == (other.loader, other.ref_size)
 
     def __repr__(self):
         return f"Request({self.as_dict()})"

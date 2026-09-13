@@ -809,10 +809,12 @@ class H3(base.Family):
         # The stack goes on first, then the same three patches every sampler
         # in this module runs behind — see `MiniMaxH3GuideModel` for why the
         # order is the segment node's.
+        knobs = {"loader": finish.loader} \
+            if finish.loader != guidelora.DEFAULT_LOADER else {}
         stacked = graph.node(
             guidepass.MODEL_NODE, model=getattr(links, finish.checkpoint),
             loras=json.dumps(finish.entries, sort_keys=True),
-            checkpoint=finish.checkpoint).out(0)
+            checkpoint=finish.checkpoint, **knobs).out(0)
         model = patched(graph, stacked, sampling, acceleration, weights)
         return guidepass.emit(graph, model, links, sampling, reel, finish, seed)
 
