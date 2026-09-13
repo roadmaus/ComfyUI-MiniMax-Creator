@@ -818,6 +818,8 @@ export const zh = {
  "Everything": "全部",
  "Spectrum's video spectral share — higher is faster and further from a native render": "Spectrum 的视频频谱占比——越高越快，离原生渲染也越远",
  "blend {n}": "混合 {n}",
+ "SLA's fraction of key blocks skipped. 0.85 is what the SLA turbo LoRA was distilled against; lower attends more and costs more, and below about 0.60 the sparse kernel is slower than dense.": "SLA 跳过的键块比例。0.85 是 SLA turbo LoRA 蒸馏时的值；越低看得越多、代价越高，低于约 0.60 时稀疏核比稠密注意力还慢。",
+ "sparsity {n}": "稀疏度 {n}",
  "Quality": "质量",
  "Folders": "文件夹",
  "Nodes": "节点",

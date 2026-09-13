@@ -817,6 +817,8 @@ export const ko = {
  "Everything": "전체",
  "Spectrum's video spectral share — higher is faster and further from a native render": "Spectrum의 영상 스펙트럼 비율 — 높을수록 빠르고 네이티브 렌더에서 더 멀어집니다",
  "blend {n}": "블렌드 {n}",
+ "SLA's fraction of key blocks skipped. 0.85 is what the SLA turbo LoRA was distilled against; lower attends more and costs more, and below about 0.60 the sparse kernel is slower than dense.": "SLA가 건너뛰는 키 블록의 비율. 0.85는 SLA turbo LoRA가 증류된 값입니다. 낮을수록 더 많이 보고 더 많이 들며, 약 0.60 아래에서는 희소 커널이 밀집 어텐션보다 느립니다.",
+ "sparsity {n}": "희소도 {n}",
  "Quality": "품질",
  "Folders": "폴더",
  "Nodes": "노드",

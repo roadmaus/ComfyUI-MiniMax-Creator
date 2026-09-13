@@ -125,6 +125,15 @@ check("...and so does the whole accelerator half",
        accel_settings.attention, accel_settings.chunk_ffn, accel_settings.fp16_accumulation),
       ("safe", True, 0.25, "sage", True, True))
 check("a moved shift is a shift", sampler.shifted(), True)
+
+# SLA's sparsity is blob-only, like `vdn`: no widget slot, so an absent field
+# is the LoRA's value and a stored one is read as a number (#78).
+check("no block: sparsity is the distillation's",
+      resolve(None)[1].sla_sparsity, sampling.DEFAULTS["sla_sparsity"])
+check("a stored sparsity reaches the accelerators",
+      resolve({"attention": "sla", "sla_sparsity": 0.7})[1].sla_sparsity, 0.7)
+expect_error("a sparsity that is not a number", lambda: resolve({"sla_sparsity": "lots"}),
+             "sla_sparsity")
 check("...and the defaults are not", resolve(None)[0].shifted(), False)
 
 # ---- the deprecated sage switch ---------------------------------------------

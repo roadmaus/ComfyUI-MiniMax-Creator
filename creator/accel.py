@@ -155,6 +155,10 @@ SOURCES = {
 # "default" is the checkpoint's own and emits no node at all.
 ATTENTION_MODES = ["default", "sage", "kitchen", "sla"]
 
+# See `Settings.sla_sparsity`. The pack refuses above 0.95.
+SLA_SPARSITY_DEFAULT = 0.85
+SLA_SPARSITY_MAX = 0.95
+
 # KJNodes' own defaults are 2 chunks over 4096 tokens; 4 is what the H3 workflows
 # that use it settle on and what issue #18 asked for. Named here rather than read
 # off the class because these two are a *preset* — the pack's defaults are its
@@ -181,6 +185,12 @@ class Settings:
     spectrum: bool = False
     spectrum_blend: float = 0.5
     attention: str = "default"
+    # SLA's fraction of key blocks *skipped*, read only under `attention="sla"`.
+    # 0.85 is lightx2v's shipped value and what the SLA turbo LoRA was
+    # distilled against; the pack's own default has moved between 0.80 and
+    # 0.90 across releases, which is why this is a setting rather than left to
+    # the class (#78). Below about 0.60 the kernel is slower than dense.
+    sla_sparsity: float = SLA_SPARSITY_DEFAULT
     chunk_ffn: bool = False
     fp16_accumulation: bool = False
     # A VDN stage's directory name, or `VDN_OFF`. `vdn_turbo` is the row's
@@ -337,6 +347,19 @@ def _spectrum_kwargs(node, blend):
     return kwargs
 
 
+def _sla_kwargs(node, sparsity):
+    """The pack's required inputs off the class, with the sparsity ours.
+
+    The block size and the dozen optional inputs — which steps stay dense,
+    which prefix is protected, which kernel runs the dense fall-through — stay
+    at `execute`'s own defaults, which is where its author keeps them. The
+    sparsity is the one the quality trade turns on, so it is the row's.
+    """
+    kwargs = node_defaults(node)
+    kwargs["sparsity_ratio"] = float(sparsity)
+    return kwargs
+
+
 def plan(settings, sampler_steps=None):
     """`[(node_id, kwargs), ...]` in the order they must be applied.
 
@@ -381,13 +404,8 @@ def plan(settings, sampler_steps=None):
         steps.append((SAGE_NODE, node_defaults(_require(SAGE_NODE))))
     elif settings.attention == "kitchen":
         steps.append((KITCHEN_NODE, _kitchen_kwargs(_require(KITCHEN_NODE))))
-    # At the pack's own tuning, the whole of it: the sparsity and the block size
-    # are its two required inputs and come off the class, and the dozen optional
-    # ones — which steps stay dense, which prefix is protected, which kernel runs
-    # the dense fall-through — are left to `execute`'s own defaults, which is
-    # where its author keeps them.
     elif settings.attention == "sla":
-        steps.append((SLA_NODE, node_defaults(_require(SLA_NODE))))
+        steps.append((SLA_NODE, _sla_kwargs(_require(SLA_NODE), settings.sla_sparsity)))
     # Then the MLP, which is the other object patch and the other thing every
     # step pays for. Its order against the attention does not matter — they
     # patch different keys on different modules and neither wraps the other —

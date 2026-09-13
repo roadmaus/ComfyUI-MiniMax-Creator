@@ -816,6 +816,8 @@ export const ja = {
  "Everything": "すべて",
  "Spectrum's video spectral share — higher is faster and further from a native render": "Spectrum の映像スペクトル比率 — 高いほど速く、ネイティブレンダリングから遠ざかります",
  "blend {n}": "ブレンド {n}",
+ "SLA's fraction of key blocks skipped. 0.85 is what the SLA turbo LoRA was distilled against; lower attends more and costs more, and below about 0.60 the sparse kernel is slower than dense.": "SLA が飛ばすキーブロックの割合。0.85 は SLA turbo LoRA が蒸留された値です。低いほど多く見て多くかかり、約 0.60 を下回るとスパースカーネルは密なアテンションより遅くなります。",
+ "sparsity {n}": "スパース {n}",
  "Quality": "品質",
  "Folders": "フォルダー",
  "Nodes": "ノード",

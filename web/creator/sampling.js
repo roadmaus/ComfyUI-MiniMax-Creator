@@ -841,6 +841,7 @@ export function samplingBar({ widgets, value, set, perSegment = false,
   // matmul accumulates, so they sit with them but rule nothing else out.
   if (widgets.attention) adoptSage(widgets, set);
   const attention = widgets.attention ? String(value("attention", "default")) : null;
+  const sparsity = S_widgetsOf(family).find((w) => w.id === "sla_sparsity");
   const lowVram = Boolean(value("chunk_ffn", false));
   const fastMath = Boolean(value("fp16_accumulation", false));
 
@@ -869,6 +870,20 @@ export function samplingBar({ widgets, value, set, perSegment = false,
             }),
           }, [el("span", { text: t(ATTENTION_LABEL[attention] || ATTENTION_LABEL.default) })]);
         }
+      : null,
+    // SLA's sparsity, extending the pill under 'sla' the way the blend extends
+    // Spectrum: the one number its quality trade turns on (#78). Off the
+    // family's declaration, not a node widget — the field is blob-only, like
+    // `vdn` — so its range and default are the manifest's.
+    attention === "sla" && sparsity
+      ? (seg) => stepperPill({
+          seg,
+          value: Number(value("sla_sparsity", sparsity.default)),
+          min: sparsity.min, max: sparsity.max, step: sparsity.step, width: "52px",
+          title: t(sparsity.help),
+          format: (n) => t("sparsity {n}", { n: n.toFixed(2) }),
+          onChange: (next) => set("sla_sparsity", next),
+        })
       : null,
     widgets.chunk_ffn && (advanced || lowVram)
       ? (seg) => el("button", {
