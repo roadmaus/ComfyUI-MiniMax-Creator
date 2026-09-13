@@ -1,39 +1,20 @@
 name: Bug report
-description: Something broke — a render fails, the UI misbehaves, a refusal you don't understand.
+description: Something broke — a render fails, the UI misbehaves, an error you can reproduce.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report. Two things before you start:
-        - If the node **refused** your render with a message naming a field and a folder, that is usually a missing weight file, not a bug — check the model tables in docs/models.md first.
-        - Please fill in the environment section even if it feels irrelevant. Most reports we can't act on are missing exactly that.
-
-  - type: dropdown
-    id: surface
-    attributes:
-      label: Where does it happen?
-      description: Pick the part of the pack that misbehaves.
-      options:
-        - Creator node — sampling / render fails or output is wrong
-        - Creator node — UI (pills, prompt box, chips, badge)
-        - "@ mention menu / attachment picker / Gallery"
-        - Trimming / segment editor
-        - LoRA manager (cards, metadata, triggers, turbo)
-        - Refine (prompt rewriting)
-        - PreStage (Krea 2 / Ideogram / H3 stills)
-        - Timeline
-        - GGUF loading
-        - Install / node doesn't load at all
-        - Something else
-    validations:
-      required: true
+        Thanks. This is a one-person project, so a report I can reproduce gets fixed and a report I have to guess at waits. Three things help most:
+        - If the node **refused** the render with a message naming a field and a folder, that is a missing weight file, not a bug — see the [FAQ](https://github.com/roadmaus/ComfyUI-Continuity/blob/main/docs/faq.md) and the model tables in [docs/models.md](https://github.com/roadmaus/ComfyUI-Continuity/blob/main/docs/models.md).
+        - Questions and feature ideas go to [Discussions](https://github.com/roadmaus/ComfyUI-Continuity/discussions); one bug per issue here.
+        - Fill in the environment block even if it feels irrelevant. Nearly every report I can't act on is missing exactly that.
 
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
-      description: What did you do, what did you expect, what happened instead? If there was an error message or a refusal, paste its exact text.
+      description: What you did, what you expected, what happened instead. Paste the exact text of any error or refusal.
       placeholder: |
         1. Attached @img-1, typed "...", pressed Run
         2. Expected a clip
@@ -44,8 +25,8 @@ body:
   - type: textarea
     id: console
     attributes:
-      label: ComfyUI console output
-      description: The terminal output around the failure — the full traceback if there is one. For UI problems, also open the browser DevTools console (F12) and paste any errors from there.
+      label: Console output
+      description: The ComfyUI terminal around the failure — the full traceback if there is one. For UI problems, also the browser DevTools console (F12).
       render: text
 
   - type: textarea
@@ -53,43 +34,21 @@ body:
     attributes:
       label: Environment
       description: |
-        ComfyUI version is in the terminal at startup or in Manager. The node version is in `pyproject.toml`, or run `git log -1 --oneline` in the node's folder.
+        ComfyUI version is printed at startup or shown in Manager. The node version is in `pyproject.toml`, or `git log -1 --oneline` in the node's folder. The model lines matter for render bugs; filenames are enough — they carry quantization, variant and source.
       value: |
         - ComfyUI version / commit:
         - Continuity version / commit:
         - Installed via: (git clone / ComfyUI Manager / registry)
-        - OS:
-        - GPU + VRAM:
-        - Model family: (MiniMax H3 / LTX 2.5 / Krea 2 / Ideogram 4.0)
+        - OS, GPU + VRAM:
+        - Model family: (MiniMax H3 / LTX 2.5 / Krea 2 / Ideogram 4.0 / Qwen Image Edit / Flux 2 Klein)
+        - Checkpoint / text encoder / VAE (render bugs):
+        - GGUF, LoRAs, turbo, accelerator pill (if any):
+        - UI language (UI bugs): 
     validations:
       required: true
-
-  - type: textarea
-    id: weights
-    attributes:
-      label: Model files (render/sampling bugs only)
-      description: What the weights pill was set to when it failed. Filenames are enough — they tell us quantization, variant and source. Skip for pure UI bugs.
-      value: |
-        - Checkpoint (FL2VA / Ref2VA):
-        - Text encoder:
-        - VAE(s):
-        - GGUF involved? ComfyUI-GGUF installed?:
-        - LoRAs / turbo on?:
-        - Refiner model (if Refine is involved):
 
   - type: textarea
     id: workflow
     attributes:
       label: Workflow / prompt
-      description: Drag the workflow JSON here (export via Workflow → Export), or paste the prompt and describe what was attached (how many images/videos/audio, scopes, trims). This lets us reproduce instead of guess.
-
-  - type: dropdown
-    id: locale
-    attributes:
-      label: UI language
-      description: Only matters for UI/text bugs.
-      options:
-        - English
-        - 日本語
-        - 한국어
-        - 中文
+      description: Drag the workflow JSON here (Workflow → Export), or paste the prompt and say what was attached (images/videos/audio, scopes, trims). This is what lets me reproduce instead of guess.

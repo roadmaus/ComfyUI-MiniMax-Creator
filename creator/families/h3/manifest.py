@@ -40,6 +40,12 @@ def _widgets():
                  default=d["spectrum_blend"], min=0.0, max=1.0, step=0.01),
         m.widget("attention", "combo", label="attention", group="accel",
                  default=d["attention"], options=accel.ATTENTION_MODES),
+        # Blob-only, like `vdn`: the node's widget slots are frozen and this
+        # rides the attention pill, drawn only under 'sla'.
+        m.widget("sla_sparsity", "slider", label="sparsity", group="accel",
+                 default=d["sla_sparsity"], min=0.0, max=accel.SLA_SPARSITY_MAX,
+                 step=0.05, requires=("attention", "sla"),
+                 help="SLA's fraction of key blocks skipped. 0.85 is what the SLA turbo LoRA was distilled against; lower attends more and costs more, and below about 0.60 the sparse kernel is slower than dense."),
         m.widget("chunk_ffn", "toggle", label="chunk FFN", group="accel",
                  default=d["chunk_ffn"]),
         m.widget("fp16_accumulation", "toggle", label="fp16 accumulation",

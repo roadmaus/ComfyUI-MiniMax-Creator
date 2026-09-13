@@ -448,14 +448,22 @@ check("kitchen plans core's node", [node_id for node_id, _ in kitchen], [accel.K
 check("kitchen asks for the kernel by core's own name",
       kitchen[0][1], {"attention": accel.KITCHEN_OPTION})
 
-# The sparse backend is built at the pack's own tuning: its two required
-# numbers off the class, through the V3 shim, and none of the optional ones —
-# those are `execute`'s to default (#23).
+# The sparse backend: the block size off the class, through the V3 shim, the
+# sparsity ours (#78 — the pack's own default has moved between releases, and
+# it is the number the quality trade turns on), and none of the optional
+# inputs — those are `execute`'s to default (#23).
 check("sla alone counts as an accelerator", accel.Settings(attention="sla").any, True)
 sla = accel.plan(accel.Settings(attention="sla"))
 check("sla plans the pack's node", [node_id for node_id, _ in sla], [accel.SLA_NODE])
-check("sla is built at the pack's required defaults",
-      sla[0][1], {"sparsity_ratio": 0.80, "block_size": "32"})
+check("sla is built at the row's sparsity and the pack's block size",
+      sla[0][1], {"sparsity_ratio": accel.SLA_SPARSITY_DEFAULT, "block_size": "32"})
+check("the default sparsity is the LoRA's, not the fixture's",
+      accel.SLA_SPARSITY_DEFAULT, 0.85)
+check("a dialled sparsity reaches the node",
+      accel.plan(accel.Settings(attention="sla", sla_sparsity=0.7))[0][1]["sparsity_ratio"], 0.7)
+check("sparsity is read only under sla",
+      "sparsity_ratio" in accel.plan(accel.Settings(attention="kitchen", sla_sparsity=0.7))[0][1],
+      False)
 check("sla's direct path runs through the V3 shim",
       accel.direct_apply("MODEL", accel.Settings(attention="sla"))[:2], ("sla", "MODEL"))
 

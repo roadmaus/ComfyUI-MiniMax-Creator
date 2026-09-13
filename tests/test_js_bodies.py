@@ -3016,7 +3016,7 @@ try {
   second.probedAt = 0;
   await second.probe();
   out.recovery.failedState = second.state;
-  out.recovery.failedSays = second.error;
+  out.recovery.failedSays = second.failure?.items.map((item) => item.what).join(" ");
   second.destroy();
   globalThis.__history = null;
 } catch (error) {

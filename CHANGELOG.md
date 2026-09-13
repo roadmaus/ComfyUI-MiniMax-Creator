@@ -69,6 +69,18 @@ samples. The door is a Restyle chip on a finished render and a row in the
 pill. Unmeasured on a real render: the feathered join between two
 independently finished parts, and canvases past the files' 0.59 MP.
 
+**SLA's sparsity is on the row: pick `attention sla` and the pill extends with
+a `sparsity` stepper, the way Spectrum's extends with its blend (#78).** The
+number is the fraction of key blocks SLA skips and the one its quality trade
+turns on, and it used to be whatever the installed pack defaulted to — which
+has moved between 0.80 and 0.90 across the pack's releases, so two machines
+with the same workflow could render differently. It now defaults to 0.85,
+what the lightx2v SLA turbo LoRA was distilled against, and goes down to 0
+(dense, node still applied) and up to the pack's 0.95 ceiling; below about
+0.60 the sparse kernel is slower than dense, which the tooltip says. The field
+is blob-only like VDN's stage — the node's widget slots are frozen — so a
+workflow saved before this renders at 0.85 rather than at the pack's default.
+
 **Motion fix: a switch on the card that slows a shot down where it moves too
 fast for the model, draws it again and puts it back on the clock (#76).** H3
 smears bursty motion — a flip, a sword arc, a whip-fast turn — because one

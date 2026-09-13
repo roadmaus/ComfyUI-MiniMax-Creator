@@ -1,1 +1,11 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/roadmaus/ComfyUI-Continuity/discussions/categories/q-a
+    about: '"How do I…?", which weights to pick, prompt writing, "is this expected?". Check docs/faq.md first — it covers the common errors.'
+  - name: Suggest a feature
+    url: https://github.com/roadmaus/ComfyUI-Continuity/discussions/categories/ideas
+    about: Something the node should do, or do differently. Say what you are trying to do before how you imagine the button. When I pick one up it becomes an issue.
+  - name: Show what you made
+    url: https://github.com/roadmaus/ComfyUI-Continuity/discussions/categories/show-and-tell
+    about: Renders, workflows, tricks.

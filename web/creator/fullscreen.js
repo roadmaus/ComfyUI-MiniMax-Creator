@@ -494,7 +494,7 @@ class Fullscreen {
     });
 
     // Whether anything actually reached the queue. ComfyUI's `queuePrompt`
-    // catches a refused prompt itself — it shows the dialog and resolves — so
+    // catches a refused prompt itself — it marks the canvas and resolves — so
     // the promise the press returns never rejects, and the row's optimism is
     // never spent: "Sampling" stands over a render that was never queued, and
     // the only way out anybody finds is Cancel, pressed until something
@@ -1641,8 +1641,9 @@ class Fullscreen {
         this.inflight -= 1;
         // The press went out and nothing was accepted while it was in the air:
         // the prompt was refused, and the row goes back to offering the press
-        // rather than reporting a render that is not happening. The dialog
-        // ComfyUI put up says what was wrong with it.
+        // rather than reporting a render that is not happening. What was wrong
+        // with it is on the stage's slate — ComfyUI's own account of a refusal
+        // is a side-panel tab and node badges, both behind this shell.
         if (this.inflight || this.accepted !== before) return;
         run.queued = false;
         this.paint();

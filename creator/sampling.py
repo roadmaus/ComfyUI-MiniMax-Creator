@@ -89,6 +89,7 @@ DEFAULTS = {
     "spectrum": False,
     "spectrum_blend": 0.5,
     "attention": "default",
+    "sla_sparsity": accel.SLA_SPARSITY_DEFAULT,
     "chunk_ffn": False,
     "fp16_accumulation": False,
     # A VDN-H3 stage under `models/vdn`, or off. A name rather than a choice:
@@ -102,7 +103,7 @@ DEFAULTS = {
 # than coerced: a hand-edited `"steps": "twenty"` should say so before a loader
 # is built, not sample once at whatever `int()` made of it.
 _WHOLE = ("steps",)
-_NUMBER = ("cfg", "shift_video", "shift_audio", "spectrum_blend")
+_NUMBER = ("cfg", "shift_video", "shift_audio", "spectrum_blend", "sla_sparsity")
 _FLAG = ("spectrum", "chunk_ffn", "fp16_accumulation")
 _CHOICE = {
     "block_cache": accel.BLOCK_CACHE_MODES,
@@ -161,6 +162,7 @@ def resolve(data, widgets):
             attention=_attention(pick("attention"),
                                  widgets.get("sage", False),
                                  named="attention" in stored),
+            sla_sparsity=pick("sla_sparsity"),
             chunk_ffn=pick("chunk_ffn"),
             fp16_accumulation=pick("fp16_accumulation"),
             vdn=pick("vdn"),

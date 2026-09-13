@@ -21,7 +21,7 @@ export const css = `
 
 .mmc-stage {
   /* The card's own floor matters when there is no media to size it — a failed
-     render is a chip of text in an otherwise empty box.
+     render is a slate of text in an otherwise empty box, see below.
 
      A column, and it has to say display: the media row below is flex 1, and
      that is what stretches it to the card's height — the height the picture then
@@ -55,6 +55,38 @@ export const css = `
    dock states this for itself, on its own terms — this one is the satellite's. */
 .mmc-satellite .mmc-stage { aspect-ratio: var(--mmc-media-ar, auto); }
 .mmc-stage-media { flex: 1; min-height: 0; display: flex; }
+
+/* --- the slate ------------------------------------------------------------- */
+/*
+ * The frame with no picture in it. The card keeps the black ground and the
+ * rounded edge of a render and the reason is set across it like a title card:
+ * a lead line saying which of the two things happened, then one block per
+ * fault — where, in the warning colour, and what, in the card's own text.
+ * The one place the card holds *reading* rather than a picture, so it takes the
+ * width of a comfortable line rather than the picture's shape: on the satellite
+ * the height is the node's, and the block sits at its vertical centre the way a
+ * slate's line does. Bottom padding clears the readout row overlaid there.
+ */
+.mmc-stage[data-state="failed"] { width: max-content; max-width: 460px; min-width: 300px; }
+.mmc-stage-slate {
+  flex: 1; min-height: 0; overflow: auto; pointer-events: auto;
+  display: flex; flex-direction: column; justify-content: center; gap: 14px;
+  padding: 22px 22px 48px;
+  font-size: calc(13px * var(--mmc-type)); line-height: 1.45;
+  color: var(--mmc-text); user-select: text; cursor: text;
+  scrollbar-width: thin;
+}
+/* A long list scrolls from the top rather than centring off both ends. */
+.mmc-stage-slate > :first-child { margin-top: auto; }
+.mmc-stage-slate > :last-child { margin-bottom: auto; }
+.mmc-stage-slate-lead { font-weight: 600; letter-spacing: .005em; }
+.mmc-stage-slate-where {
+  color: var(--mmc-warn); font-weight: 500; margin-bottom: 2px;
+}
+.mmc-stage-slate-what {
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--mmc-text) 82%, transparent);
+}
 .mmc-stage-img, .mmc-stage-video {
   height: 100%; width: auto; min-height: 0; object-fit: contain;
   /* Until the media reports its size the card would be a sliver; until it is
@@ -110,9 +142,9 @@ export const css = `
   color: var(--mmc-warn); border-color: color-mix(in srgb, var(--mmc-warn) 40%, transparent);
   white-space: normal; text-align: left;
 }
-/* The step count, while there are steps. Scoped to the left side so the accent
-   lands on what is counting and not on the clock beside it. */
-.mmc-stage[data-state="sampling"] .mmc-stage-side:not(.end) .mmc-stage-chip:last-child {
+/* The step count, while there are steps. By class rather than by position: the
+   stall and refusal chips follow it in the row and want their own colour. */
+.mmc-stage[data-state="sampling"] .mmc-stage-count {
   color: var(--mmc-accent); border-color: color-mix(in srgb, var(--mmc-accent) 35%, transparent);
 }
 /* Which segment the steps belong to — first in the row, before the count it is

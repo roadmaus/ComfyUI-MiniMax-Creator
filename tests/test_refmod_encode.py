@@ -221,7 +221,7 @@ if remake_routes is not None:
     media.resolve = lambda filename: (refmod.resolve(filename) if refmod.is_mod(filename)
                                       else filename if filename == "anna/face.png"
                                       else (_ for _ in ()).throw(media.MediaError(f"{filename!r} gone")))
-    media.load_image = lambda filename: picture
+    media.load_image = lambda filename, crop=None: picture
 
     # Made full from the picture, the way `_run_job` writes it: the header
     # keeps the picker's path, which is what a remake reads it back from.
