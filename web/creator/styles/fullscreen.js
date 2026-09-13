@@ -547,9 +547,9 @@ export const css = `
      file, letterboxed by its own frame. "auto" until the media has loaded,
      which is the same thing as no constraint. */
   aspect-ratio: var(--mmc-media-ar, auto);
-  /* The 240px floor is the card's answer to having no media at all — an error
-     is a chip of text in an otherwise empty box — and it is the wrong answer for
-     a narrow portrait render, which has media and a shape of its own. */
+  /* The 240px floor is the card's answer to having no media at all — the
+     slate, which sizes itself — and it is the wrong answer for a narrow
+     portrait render, which has media and a shape of its own. */
   min-width: 0;
   border-radius: 18px; box-shadow: 0 24px 64px var(--mmc-shadow-soft);
 }
@@ -565,7 +565,11 @@ export const css = `
              calc(100cqh * var(--mmc-plate-scale, 1) * var(--mmc-media-arn, 1)));
   height: auto;
 }
-.mmc-fs-dock .mmc-stage[data-state="failed"] { min-width: 240px; }
+/* The slate in the column: as tall as its reading, not the column, so the
+   lead line sits with its reasons rather than a screen's height above them. */
+.mmc-fs-dock .mmc-stage[data-state="failed"] {
+  min-width: 300px; max-width: min(460px, 100%); height: auto; max-height: 100%;
+}
 .mmc-fs-still .mmc-stage { max-width: 100%; max-height: 66vh; }
 
 /* --- an earlier take, on the picture --------------------------------------- */
