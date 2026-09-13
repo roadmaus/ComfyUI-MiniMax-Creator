@@ -33,6 +33,9 @@ api.addEventListener = (name, fn) => {
 };
 api.removeEventListener = (name, fn) => events.get(name)?.delete(fn);
 const say = (name, detail) => { for (const fn of events.get(name) ?? []) fn({type:name,detail}); };
+// The queue hook announces a refusal on the api (the slate listens); route it
+// into the same map the stubbed listeners registered on.
+api.dispatchEvent = (event) => { say(event.type, event.detail); return true; };
 const requests = [];
 api.queuePrompt = function(...args) {
   return new Promise((resolve,reject)=>requests.push({args,resolve,reject,receiver:this}));
