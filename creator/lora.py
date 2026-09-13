@@ -131,7 +131,7 @@ def modality(entry):
     return {"video": 1.0, "text": 1.0, "audio": max(0.0, min(1.0, audio))}
 
 
-def apply(model, entries, target, without="", family=registry.DEFAULT_VIDEO):
+def apply(model, entries, target, without="", family=registry.DEFAULT_VIDEO, loader=""):
     """Patch `model` with every enabled LoRA that claims the `target` checkpoint.
 
     Returns the model untouched when the stack is empty — a piece with no LoRAs
@@ -139,12 +139,16 @@ def apply(model, entries, target, without="", family=registry.DEFAULT_VIDEO):
     importable either.
 
     Which stack does the patching is the family's, off `registry.LORA_STACK`;
-    see this module's own docstring for the whole of the argument.
+    see this module's own docstring for the whole of the argument. `loader`
+    overrides it for one caller — "core" or "h3lora" — where the result has to
+    match what a file's own published workflow produces rather than what this
+    pack argues is exact (the guide-LoRA pass; `guidepass.MiniMaxH3GuideModel`
+    says why).
     """
     rows = stack(entries, target, without=without, family=family)
     if not rows:
         return model
-    if registry.LORA_STACK.get(family) == "h3lora":
+    if (loader or registry.LORA_STACK.get(family)) == "h3lora":
         return _apply_h3(model, rows)
     return _apply_core(model, rows)
 

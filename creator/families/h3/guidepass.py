@@ -74,8 +74,22 @@ class MiniMaxH3GuideModel(io.ComfyNode):
     Its own node rather than a patch inside the pass, so the sigma shift, the
     accelerators and the preview decoder go on *after* the LoRAs, in the order
     every other sampler in this family runs behind (`render.patched`) — a
-    block-cache accelerator refuses to sit downstream of a block replacement,
-    and the vendored stack may run a file as a live branch.
+    block-cache accelerator refuses to sit downstream of a block replacement.
+
+    **On core's loader, not the vendored stack.** Measured on the lab's int8
+    Ref2VA, 2026-09-13, one source clip, one seed, one caption, one reference:
+    the published style-transfer workflow rebuilt from core nodes moves the
+    picture; the same graph with only the loader swapped for the vendored stack
+    comes back near-photoreal — and that is exactly our node's result. Both
+    loaders fry at strength 3, so the stack does apply the file; the two differ
+    in what a LoRA does to a quantized layer. Core requantizes weight plus
+    delta into the INT8 kernel (`comfy.ops` requantize_from_float, scale
+    recalculated); the vendored stack keeps the INT8 base and runs the delta as
+    an exact bf16 branch. Why the requantized form transfers more is not
+    understood — but the guide files were trained, judged and published
+    against core's loader, and a pass whose promise is "the published result"
+    has to wear them the way the publication does. The piece's own stack is
+    untouched: this is the pass's rig, like its sampler row.
     """
 
     @classmethod
@@ -103,7 +117,7 @@ class MiniMaxH3GuideModel(io.ComfyNode):
         entries = json.loads(loras) if str(loras or "").strip() else []
         if not entries:
             raise GuidePassError("the guide-LoRA pass was given no file to wear")
-        return io.NodeOutput(lora.apply(model, entries, checkpoint))
+        return io.NodeOutput(lora.apply(model, entries, checkpoint, loader="core"))
 
 
 def _guide(frames, length):
