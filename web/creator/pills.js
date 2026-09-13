@@ -14,11 +14,14 @@ import { UPSCALE_MODES, DEFAULT_REFINE_DENOISE, MIN_REFINE_DENOISE, MAX_REFINE_D
          MIN_FACE_CANVAS, MAX_FACE_CANVAS,
          MIN_FACE_DENOISE, MAX_FACE_DENOISE,
          emptyNeural, NEURAL_DEFAULTS, NEURAL_RANGES,
-         neuralEstimateGb } from "./state.js";
+         neuralEstimateGb, emptyGuideLora, GUIDE_LORA_STRENGTH, guideLoraRoles,
+         guideLoraRole, isRestyle } from "./state.js";
 import { UPSCALERS, NEURAL } from "./manifest.js";
-import { neuralRail, neuralSwitch, savedProfiles, saveProfile, forgetProfile,
-         sameProfile, applyProfile, profileOf, startingBlock } from "./neural.js";
+import { neuralRail, neuralSwitch, neuralDial, neuralChoice, savedProfiles, saveProfile,
+         forgetProfile, sameProfile, applyProfile, profileOf, startingBlock } from "./neural.js";
 import { openLoupe } from "./loupe.js";
+import { listLoraNames, loadLoraPrefs, saveLoraPrefs } from "./api.js";
+import { atlasUrl } from "./presets/atlasref.js";
 
 /**
  * Closely related controls as one pill, divided by hairlines.
@@ -1199,4 +1202,354 @@ export function openNeuralPopover(anchor, { target, commit, still = false, geome
   document.body.appendChild(pop);
   placeNear(pop, anchor);
   dismissable(pop);
+}
+
+
+/** The pass's file name without folder or extension. */
+const guideStem = (name) => String(name ?? "").split("/").pop().replace(/\.[^.]+$/, "");
+
+/** The pseudo-role for a file the family's table does not know. */
+const OTHER_ROLE = "other";
+
+/**
+ * The guide-LoRA pass, as a pill on the sampler row.
+ *
+ * A file trained with the source clip pinned as an aligned guide — a
+ * sharpener, a style transfer — run over every written pass at the size it
+ * was written, before ReDetail and the refiner. It sits with the refiner
+ * because it is the same kind of statement: a thing done to the render rather
+ * than a thing the piece is, and off reads as off. H3's alone; the caller
+ * gates on the capability.
+ *
+ * The pill says which role the pass plays, not which file: `sharpen`,
+ * `style · Claymation`. The file name is the answer to a question nobody at
+ * the sampler row is asking.
+ *
+ * @param {object} spec
+ * @param {object} spec.target  a piece or timeline state, mutated in place
+ * @param {() => void} spec.commit
+ * @param {() => Promise<void>} [spec.onPickLook]  open the library as a look
+ *   picker — a restyle: the style file, the look's frame and the caption
+ *   written onto the block. Absent where the family has no style grammar.
+ */
+export function guideLoraPill({ target, commit, onPickLook = null }) {
+  const block = target.guide_lora ?? emptyGuideLora();
+  const role = guideLoraRole(block.lora, pieceFamily(target));
+  const restyling = isRestyle(block);
+  const roleWord = role ? t(role.label).toLowerCase() : t("guide");
+  const title = restyling
+    ? t("Restyling: every pass is generated again in the look of {look}, with its "
+      + "frame as the picture. A second full generation per pass, at the same size.",
+        { look: block.look || block.picture })
+    : block.on
+      ? t("The guide LoRA pass is on: every pass is generated again from noise with "
+        + "itself pinned as an aligned guide, under {name}. A second full generation "
+        + "per pass, at the same size.", { name: guideStem(block.lora) || t("no file") })
+      : t("The guide LoRA pass is off. Switch it on to run a guide-trained file — a "
+        + "sharpener, a style transfer — over the finished passes.");
+  let label;
+  if (!block.on) label = t("guide LoRA off");
+  else if (restyling) label = `${roleWord} · ${block.look || block.picture}`;
+  else if (role && role.prompt) label = roleWord;
+  else if (role) label = `${roleWord} · ${t("no look")}`;
+  else label = `${roleWord} · ${guideStem(block.lora) || "?"}`;
+  return el("button", {
+    class: `mmc-pill${block.on ? " accel-on" : ""}`,
+    title,
+    onclick: (event) => openGuideLoraPopover(event.currentTarget, { target, commit, onPickLook }),
+  }, [el("span", { class: "mmc-pill-clip", text: label })]);
+}
+
+
+/**
+ * The pass's settings, as a panel: the switch, which role, what that role
+ * needs, how hard, which checkpoint.
+ *
+ * The role is the control, not the file. The family's table names what each
+ * published file does (`guidelora.ROLES`) and the pill offers those as a
+ * switch, plus "other" for a file the table does not know yet. Picking a role
+ * picks its file — the one remembered, else the one installed — and writes
+ * what the file is told: a captioned file's own sentence, which is shown and
+ * not edited (typing it from the card is the one thing nobody should have to
+ * do); a style file's sentence comes from the look and is composed in the
+ * library. Only an unknown file gets a box to type in.
+ *
+ * What was last chosen is kept in the LoRA prefs, per role, so switching the
+ * pass on in a fresh piece lands on the last setup rather than on a search.
+ */
+export function openGuideLoraPopover(anchor, { target, commit, onPickLook = null }) {
+  const pop = el("div", { class: "mmc-pop mmc-glora-pop" });
+  const body = el("div");
+  const family = pieceFamily(target);
+  const cap = capabilityOf(target, "guide_lora") ?? {};
+  const range = { ...GUIDE_LORA_STRENGTH, ...(cap.strength ?? {}) };
+  const checkpoints = cap.checkpoints ?? [];
+  const roles = guideLoraRoles(family);
+  let names = null;       // every LoRA name, once listed
+  let prefs = null;       // the LoRA prefs, once read
+  let query = "";
+  let searching = false;  // the other-file search is open
+
+  const stem = guideStem;
+  const roleOf = (name) => guideLoraRole(name, family);
+  const keyOf = (name) => roleOf(name)?.key ?? OTHER_ROLE;
+  const roleByKey = (key) => roles.find((role) => role.key === key) ?? null;
+  const installedFor = (key) => (names ?? []).filter((name) => keyOf(name) === key);
+
+  // Which role the panel is on. A block with a file is on that file's role;
+  // an empty one opens on what was last used, else the first published.
+  let roleKey = null;
+  const currentKey = (block) => {
+    if (block.lora) return keyOf(block.lora);
+    if (roleKey) return roleKey;
+    return (prefs?.guide.role && (roleByKey(prefs.guide.role) || prefs.guide.role === OTHER_ROLE))
+      ? prefs.guide.role : (roles[0]?.key ?? OTHER_ROLE);
+  };
+
+  const remember = (key, file) => {
+    if (!prefs) return;
+    prefs.guide.role = key;
+    if (file) prefs.guide.files[key] = file;
+    saveLoraPrefs(prefs);
+  };
+
+  /** The file a role runs: the one remembered if it is still installed, else
+   *  the one installed, else "". An unknown file is only ever remembered,
+   *  never guessed — "other" is every LoRA on the disk. */
+  const fileFor = (key) => {
+    const installed = installedFor(key);
+    const kept = prefs?.guide.files[key];
+    if (kept && (installed.includes(kept) || names === null)) return kept;
+    return key === OTHER_ROLE ? "" : (installed[0] ?? "");
+  };
+
+  /** Put the block on `file` as `key`'s file: the caption a captioned file is
+   *  told, nothing for a style file until a look is picked, nothing typed
+   *  yet for an unknown one. A hand-picked file is never a restyle. */
+  const setFile = (block, key, file) => {
+    const role = roleByKey(key);
+    // A sentence typed for an unknown file is the user's and stays; every
+    // other role's sentence belongs to the file — or to the look — and
+    // changes with it.
+    const owned = Boolean(block.picture)
+      || roles.some((known) => known.prompt && known.prompt === block.prompt);
+    block.lora = file;
+    block.picture = "";
+    block.look = "";
+    if (key !== OTHER_ROLE || owned) block.prompt = role?.prompt ?? "";
+    remember(key, file);
+  };
+
+  const selectRole = (block, key) => {
+    roleKey = key;
+    searching = false;
+    query = "";
+    setFile(block, key, fileFor(key));
+    render();
+    commit();
+  };
+
+  const switchOn = (block, next) => {
+    block.on = next;
+    // Switching on with nothing picked lands on the last setup, so the
+    // common case — the sharpener, again — is this one press.
+    if (next && !block.lora) setFile(block, currentKey(block), fileFor(currentKey(block)));
+    render();
+    commit();
+  };
+
+  const roleBar = (block) => {
+    const key = currentKey(block);
+    const entries = [...roles.map((role) => ({ key: role.key, label: t(role.label) })),
+                     { key: OTHER_ROLE, label: t("Other") }];
+    return el("div", { class: "mmc-glora-roles", role: "radiogroup", "aria-label": t("What the pass does") },
+      entries.map((entry) => el("button", {
+        class: `mmc-glora-role${entry.key === key ? " on" : ""}`,
+        role: "radio", "aria-checked": entry.key === key,
+        text: entry.label,
+        onclick: () => entry.key !== key && selectRole(block, entry.key),
+      })));
+  };
+
+  /** A file's name, or the one gap worth a sentence: no such file installed. */
+  const fileLine = (block, key) => {
+    const installed = installedFor(key);
+    if (block.lora) {
+      // Two versions of one role's file is a choice; one is a fact.
+      if (installed.length > 1) {
+        return el("div", { class: "mmc-glora-versions" }, installed.map((name) => el("button", {
+          class: `mmc-glora-version${name === block.lora ? " on" : ""}`,
+          "aria-pressed": name === block.lora, title: name, text: stem(name),
+          onclick: () => { if (name !== block.lora) { setFile(block, key, name); render(); commit(); } },
+        })));
+      }
+      return el("div", { class: "mmc-glora-fileline", title: block.lora, text: stem(block.lora) });
+    }
+    if (names === null) return el("div", { class: "mmc-glora-fileline dim", text: t("Looking in models/loras…") });
+    return el("div", { class: "mmc-glora-missing" }, [
+      el("span", { text: t("No {role} file in models/loras.", { role: t(roleByKey(key)?.label ?? "").toLowerCase() }) }),
+      ...(cap.source ? [el("span", { class: "dim", text: t("The published files are at {source}.", { source: cap.source }) })] : []),
+    ]);
+  };
+
+  /** What the file is told, as a fact rather than a form. */
+  const toldLine = (sentence) => el("div", { class: "mmc-glora-told" }, [
+    el("span", { class: "mmc-nr-label", text: t("told") }),
+    el("span", { class: "mmc-glora-sentence", text: sentence }),
+  ]);
+
+  const styleBody = (block, key) => {
+    const rows = [];
+    const picture = atlasUrl(block.picture);
+    if (isRestyle(block)) {
+      rows.push(el("div", { class: "mmc-glora-lookrow" }, [
+        picture ? el("img", { class: "mmc-glora-thumb", src: picture, alt: "" })
+                : el("span", { class: "mmc-glora-thumb blank" }),
+        el("span", { class: "mmc-glora-lookname", text: block.look || block.picture }),
+        ...(onPickLook ? [el("button", {
+          class: "mmc-glora-change", text: t("Change…"),
+          onclick: () => { pop.remove(); onPickLook(); },
+        })] : []),
+      ]));
+      if (block.prompt) rows.push(toldLine(block.prompt));
+    } else {
+      rows.push(fileLine(block, key));
+      if (block.lora && onPickLook) {
+        // The library closes on the pick and this popover is stale by then,
+        // so it closes too.
+        rows.push(el("button", {
+          class: "mmc-glora-door",
+          onclick: () => { pop.remove(); onPickLook(); },
+        }, [
+          el("span", { class: "mmc-glora-door-word", text: t("Pick a look from the atlas…") }),
+          el("span", { class: "mmc-glora-door-sub", text: t("Its frame becomes the picture; the caption is written for you.") }),
+        ]));
+      }
+    }
+    return rows;
+  };
+
+  const otherBody = (block) => {
+    const rows = [];
+    const needle = query.trim().toLowerCase();
+    if (!searching) {
+      rows.push(el("button", {
+        class: `mmc-glora-pick${block.lora ? "" : " empty"}`,
+        title: block.lora || t("Pick a guide-trained LoRA from models/loras"),
+        text: block.lora ? stem(block.lora) : t("Pick a file…"),
+        onclick: () => { searching = true; render(); },
+      }));
+    } else {
+      const shown = (names ?? []).filter((name) => !needle || name.toLowerCase().includes(needle))
+                                 .slice(0, 24);
+      const choose = (name) => { searching = false; query = ""; setFile(block, OTHER_ROLE, name); render(); commit(); };
+      rows.push(el("div", { class: "mmc-glora-file searching" }, [
+        el("input", {
+          type: "text", class: "mmc-glora-search", placeholder: t("Search models/loras"),
+          value: query, spellcheck: "false",
+          oninput: (event) => { query = event.target.value; render(); },
+          onkeydown: (event) => {
+            event.stopPropagation();
+            if (event.key === "Escape") { searching = false; render(); }
+            if (event.key === "Enter" && shown.length === 1) choose(shown[0]);
+          },
+        }),
+        el("div", { class: "mmc-glora-list" }, names === null
+          ? [el("span", { class: "mmc-glora-none", text: t("Loading…") })]
+          : shown.length
+            ? shown.map((name) => el("button", {
+                class: `mmc-glora-row${name === block.lora ? " on" : ""}`,
+                title: name, text: stem(name),
+                onclick: () => choose(name),
+              }))
+            : [el("span", { class: "mmc-glora-none", text: t("Nothing matches") })]),
+      ]));
+    }
+    rows.push(el("div", { class: "mmc-glora-prompt" }, [
+      el("span", { class: "mmc-nr-label", text: t("told") }),
+      // `text`, not `value`: a textarea's content is its text node, and a
+      // value attribute on one is ignored.
+      el("textarea", {
+        class: "mmc-glora-text", rows: "3", spellcheck: "false",
+        placeholder: t("The file's trigger caption"),
+        text: block.prompt,
+        oninput: (event) => { block.prompt = event.target.value; commit(); },
+        onkeydown: (event) => event.stopPropagation(),
+      }),
+    ]));
+    return rows;
+  };
+
+  const roleBody = (block) => {
+    const key = currentKey(block);
+    const role = roleByKey(key);
+    if (!role) return otherBody(block);
+    if ("picture_form" in role) return styleBody(block, key);
+    return [fileLine(block, key), ...(block.lora && role.prompt ? [toldLine(role.prompt)] : [])];
+  };
+
+  const render = () => {
+    const block = target.guide_lora ?? (target.guide_lora = emptyGuideLora());
+    const rows = [
+      el("div", { class: "mmc-neural-head" }, [
+        el("span", { class: "mmc-pop-title", text: t("Guide LoRA pass") }),
+        neuralSwitch({
+          on: block.on, label: t("Guide LoRA pass"),
+          onChange: (next) => switchOn(block, next),
+        }),
+      ]),
+      el("p", { class: "mmc-neural-lead", text: block.on
+        ? t("Every written pass is generated again from noise with itself pinned as an "
+          + "aligned guide, at the size it was written. The soundtrack rides through untouched.")
+        : t("Off: the passes as written. Switch it on to run a guide-trained file — "
+          + "a sharpener, a style transfer — over the finished render.") }),
+    ];
+    if (block.on) {
+      const role = roleByKey(currentKey(block));
+      rows.push(el("div", { class: "mmc-glora-section" }, [
+        roleBar(block),
+        ...(role?.blurb ? [el("p", { class: "mmc-glora-blurb", text: t(role.blurb) })] : []),
+        ...roleBody(block),
+      ]));
+      rows.push(neuralDial({
+        key: "strength", label: t("strength"), value: Number(block.strength), range,
+        note: "How hard the guide file is applied. 1 is the trainer's own unit.",
+        onChange: (next) => { block.strength = next; commit(); },
+      }));
+      if (checkpoints.length > 1) {
+        rows.push(neuralChoice({
+          label: t("checkpoint"), value: block.checkpoint, options: checkpoints,
+          notes: cap.notes ?? {},
+          onChange: (next) => { block.checkpoint = next; render(); commit(); },
+        }));
+      }
+      rows.push(el("div", { class: "mmc-pop-note", text:
+        t("A second full generation per pass, on the piece's sampler row — under turbo, "
+          + "the turbo row with the distill on. Runs before ReDetail and the DLSS refiner.") }));
+    }
+    body.replaceChildren(...rows);
+    if (searching) body.querySelector(".mmc-glora-search")?.focus();
+  };
+
+  render();
+  pop.appendChild(body);
+  document.body.appendChild(pop);
+  placeNear(pop, anchor);
+  dismissable(pop);
+
+  // The prefs and the folder listing, then draw again with them: which file
+  // each role has, and whether it is there at all. A block that is on with no
+  // file — switched on before the listing came back — takes its file now.
+  Promise.all([loadLoraPrefs().catch(() => null), listLoraNames().catch(() => [])])
+    .then(([loadedPrefs, loadedNames]) => {
+      if (!pop.isConnected) return;
+      prefs = loadedPrefs;
+      names = loadedNames;
+      const block = target.guide_lora;
+      if (block?.on && !block.lora) {
+        const file = fileFor(currentKey(block));
+        if (file) { setFile(block, currentKey(block), file); commit(); }
+      }
+      render();
+    });
 }

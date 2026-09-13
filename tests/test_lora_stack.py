@@ -86,6 +86,13 @@ check("both were handed the same two rows, in order",
       [(which, [row["name"] for row in rows]) for which, rows in took],
       [("h3lora", ["one.safetensors", "two.safetensors"]),
        ("core", ["one.safetensors", "two.safetensors"])])
+check("a caller can name the loader over the family's row: the guide pass wears "
+      "H3's files on core's, the way they were published",
+      lora.apply("model", ENTRIES, "fl2va", family="h3", loader="core"), "core-patched")
+check("...and the override is the loader, not a third path",
+      lora.apply("model", ENTRIES, "fl2va", family="h3", loader="h3lora"), "h3-patched")
+took.clear()
+
 check("a family that routes between nothing selects on no claim",
       [row["name"] for row in lora.stack(
           [*ENTRIES, {"name": "h3-only.safetensors", "strength": 1.0,

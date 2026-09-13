@@ -143,11 +143,12 @@ export class Stage {
    *   ("Segment 2 of 5"); without it the announce's index shows bare.
    */
   constructor({ nodeId, onVisibility, onState, onGallery, resultChips, segmentLabel,
-                onTakes = null }) {
+                onTakes = null, onRestyle = null }) {
     this.nodeId = nodeId;
     this.onVisibility = onVisibility;
     this.onState = onState;
     this.onGallery = onGallery;
+    this.onRestyle = onRestyle;
     this.resultChips = resultChips;
     this.segmentLabel = segmentLabel;
     // What each pass of this render wrote, for the body that owns a strip to
@@ -797,6 +798,15 @@ export class Stage {
         onpointerdown: (event) => event.stopPropagation(),
       }));
       if (this.result?.saved && this.resultChips) left.push(...this.resultChips(this.result.saved));
+      // A look for this render: opens the library on the Style tab with this
+      // frame in the wipe. Only where the owner has the pass to run it.
+      if (this.onRestyle) left.push(el("button", {
+        class: "mmc-stage-chip mmc-stage-gallery",
+        text: t("Restyle"),
+        title: t("Pick a look from the style atlas and generate this render again in it."),
+        onclick: () => this.onRestyle(),
+        onpointerdown: (event) => event.stopPropagation(),
+      }));
       // The same slot the ticking clock had. Titled rather than labelled: the
       // row is read at a glance and "took" is a word the position already says.
       if (this.tookMs) right.push(el("span", {

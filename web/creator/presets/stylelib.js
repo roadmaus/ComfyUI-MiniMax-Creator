@@ -172,3 +172,43 @@ export function styleRows() {
   });
   return rows;
 }
+
+
+// ---- a descriptor as attributes ------------------------------------------------
+//
+// The style-transfer guide file was trained on one sentence shape: a verb, "in
+// the style of <Picture 1>", then three to five attributes a painter would copy
+// — linework, palette, shading, texture, finish. A descriptor is prose in a
+// different shape ("Claymation with visible fingerprint texture and gently
+// stuttering stop-motion movement"), so it is cut into chips along its own
+// joints: commas, "with", "and". The scene clause, where the cut left one, is
+// dropped first — an attribute list has no room for a bakery.
+//
+// Two kinds of chip are marked rather than removed, because they are the
+// user's to keep: a name — an artist, a studio, a franchise — resolves the task
+// from text alone and the model stops looking at the picture; and the training
+// captions never name a subject, so a chip that is one transfers the person
+// instead of the style. The rule is the file author's, measured on the
+// training set; the list of names is a start rather than a census.
+
+// A scene clause opens on a place — a preposition and an article. "on grainy
+// 35mm" and "under warm set lighting" are film stock and light, and stay.
+const SCENE_CLAUSE = /,?\s+(against|inside|atop|along|across|down|through|(?:in|on|under|at)\s+(?:a|an|the))\s.+$/i;
+const NAMED = /\b(aardman|disney|pixar|ghibli|dreamworks|laika|warhol|lego|marvel|nintendo|anime)\b/i;
+
+/** The attributes of a descriptor, in order, at most five. */
+export function styleAttributes(text) {
+  return String(text ?? "")
+    .replace(SCENE_CLAUSE, "")
+    .split(/,|\s+with\s+|\s+and\s+/i)
+    .map((part) => part.trim().replace(/\.$/, "").toLowerCase())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+/** Why an attribute is marked, or "" for one the file can use as written. */
+export function attributeWarning(attribute) {
+  return NAMED.test(attribute)
+    ? "A name here resolves the style from the words alone, and the model stops looking at the picture."
+    : "";
+}

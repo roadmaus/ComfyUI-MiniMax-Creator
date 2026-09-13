@@ -79,6 +79,8 @@ def default_prefixes():
 
 # The roads a blended seam can take, see `DEFAULTS["seam_handoff"]`.
 SEAM_HANDOFFS = ("frames", "latent", "levelled", "masked")
+# Which loader puts H3's LoRAs on, see `DEFAULTS["lora_loader"]`.
+LORA_LOADERS = ("vendored", "core")
 DEFAULTS = {
     "video_crf": DEFAULT_CRF,
     # `{family: prefix}` apiece — see `default_prefixes` above. Asked of the
@@ -141,6 +143,16 @@ DEFAULTS = {
     # again — the road every render took before any of these existed, kept so
     # the four can be compared on the same strip.
     "seam_handoff": "latent",
+    # Which loader puts an H3 piece's LoRAs on its quantized checkpoint.
+    # "vendored": the pack's stack, which keeps the int8 bake as it is and runs
+    # each file as an exact bf16 branch beside it. "core": ComfyUI's own, which
+    # dequantizes every layer a file touches, adds the delta and requantizes
+    # with fresh rounding — what every published workflow runs on, at the cost
+    # of a slightly different base under every LoRA (measured 2026-09-13: the
+    # same seed lands on a different shot). Per machine, like the seam
+    # handoff; it reaches the graph as a segment input, so a change re-runs
+    # the pass. The guide LoRA pass always uses core's, its files' own.
+    "lora_loader": "vendored",
     # The motion fix's gate: a pass whose peak frame-to-frame change, at
     # thumbnail scale on 0-255, is under this is left alone
     # (`families/h3/derope.GATE`, and why it is the frames and not the
@@ -437,6 +449,10 @@ def clean(raw):
         if raw["seam_handoff"] not in SEAM_HANDOFFS:
             raise ValueError(f"seam_handoff must be one of {', '.join(SEAM_HANDOFFS)}")
         clean_settings["seam_handoff"] = raw["seam_handoff"]
+    if "lora_loader" in raw and raw["lora_loader"] is not None:
+        if raw["lora_loader"] not in LORA_LOADERS:
+            raise ValueError(f"lora_loader must be one of {', '.join(LORA_LOADERS)}")
+        clean_settings["lora_loader"] = raw["lora_loader"]
     for flag in ("show_shift_pills", "autoplay_previews", "advanced", "latent_cache"):
         if flag in raw and raw[flag] is not None:
             if not isinstance(raw[flag], bool):
@@ -706,6 +722,11 @@ def turbo_lead_in():
 def seam_handoff():
     """What a blended seam hands the next shot: one of `SEAM_HANDOFFS`."""
     return load()["seam_handoff"]
+
+
+def lora_loader():
+    """Which loader puts an H3 piece's LoRAs on: one of `LORA_LOADERS`."""
+    return load()["lora_loader"]
 
 
 def motion_fix_abstain():

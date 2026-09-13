@@ -881,6 +881,22 @@ try:
 finally:
     settings_mod.turbo_lead_in = was
 
+# The LoRA loader is a machine setting, and it rides into the graph as a
+# segment input so the cache sees it — but only off its default, so every
+# render before the switch existed keeps the key it had.
+check("on the default loader the segment node carries no loader input",
+      "lora_loader" in by_class(build(data=TURBO_DATA).expand)["MiniMaxH3TimelineSegment"][0][1],
+      False)
+was_loader = settings_mod.lora_loader
+settings_mod.lora_loader = lambda: "core"
+try:
+    check("switched to core's, every segment node is told so",
+          [i.get("lora_loader") for _, i in
+           by_class(build(data=TURBO_DATA).expand)["MiniMaxH3TimelineSegment"]],
+          ["core"])
+finally:
+    settings_mod.lora_loader = was_loader
+
 settings_mod.turbo_lead_in = lambda: 2
 try:
     lead_kinds = by_class(build(data=TURBO_DATA, steps=6).expand)

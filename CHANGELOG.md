@@ -6,6 +6,69 @@ exactly as it was written, wall of text and all.
 
 ## Unreleased
 
+**Guide LoRA pass: the pill asks what the pass does, not which file.** The
+popover opens on a switch of roles — Sharpen, Style, Other — read off a table
+in `guidelora.py` that names what each published file does, so the author's
+next file is one row and one more segment. A role picks its file (the one
+remembered, else the one installed) and writes what the file is told: the
+sharpener's own caption is shown, not typed — the box that used to sit empty
+under it is gone, and with it the bug where switching files kept the last
+file's sentence; the style role shows the look's frame and the sentence the
+library composed, or the door to the atlas; only an unknown file gets a box.
+The role and each role's file are kept in the LoRA prefs, so switching the
+pass on in a fresh piece lands on the last setup in one press.
+
+**Settings: which loader puts H3's LoRAs on.** The pack's vendored stack stays
+the default — it keeps the quantized checkpoint exactly as baked and runs each
+file as an exact branch — and a new choice under Rendering switches a machine
+to ComfyUI's own loader, which dequantizes, patches and requantizes every layer
+a file touches. Measured on int8 ConvRot: the two land the same seed on
+different shots, because core's fresh rounding changes the base under every
+LoRA. Pick core's to match a result made outside this pack. The guide LoRA
+pass is not on the switch: its files were published against core's loader and
+it always uses that, which is what closed the gap to the published
+style-transfer results.
+
+**Guide LoRA pass: a pill on H3's sampler row that finishes a render through
+a file trained to map one video to another.** Alissonerdx's `minimax_h3_lms`
+sharpener and `minimax_h3_style_transfer` are rank-64 LoRAs over Ref2VA
+trained with the source clip packed into the sequence as an *aligned guide* —
+VAE-encoded, pinned at frame 0 of the target's own timeline at the target's
+own canvas, held near-clean while the target is noised — so the file learns
+a pixel-level map rather than a paraphrase. That arrangement is the blended
+seam's already (`encode._context_keyframes` pins the inherited run the same
+way), so the pass is that call with the run being the whole pass: after the
+last pass is written, each generated part is read back, encoded, pinned as
+one guide block against an empty AV latent of its own size and length, and
+generated again from noise the whole schedule under the file, on the
+checkpoint the file was trained against whatever the cards route to. The
+stack it wears is the piece's turbo distill (as it sits in the piece's
+stack) and the guide file, nothing else; the row is the piece's own, which
+under turbo is the published rig. The soundtrack rides through untouched
+(`spill.rewrite`), a seam-trimmed pass is padded up to the 17k+5 grid with
+its own last frame and trimmed back after decode, and the pass runs before
+ReDetail and the DLSS refiner and never inline at a seam — a sharpened
+anchor is the ratchet the refiner was measured to have. The pill picks the
+file from `models/loras` and puts its caption in the prompt — the published
+one from `guidelora.CAPTIONS` for the sharpener, the card's trigger words
+otherwise — and the node fills an empty prompt from the same table; the
+block is `guide_lora` on the piece and the timeline, absent while off, so
+every blob that never asked round-trips as it did. `families/h3/guidelora.py`
+is the pure half (request, stack, grid) and `guidepass.py` the nodes; the
+family contract grows `finishes` / `finish_request` / `finish_routes` /
+`emit_finish` so a second family can hang its own finishing pass on the
+same hook. **Restyle** is the style file through the same pass with a
+picture: the pass takes a reference picture (`guide_lora.picture`, a look's
+frame as `atlas:000123`) and presents it as `<Picture 1>` beside the guide,
+the library's Style tab opens as a picker with the render's own frame in a
+wipe against each look, the descriptor is cut into the attribute chips the
+file's caption grammar wants (`stylelib.styleAttributes`, the grammar itself
+in `guidelora.STYLE` and served through the manifest), and the button writes
+the block and queues the node — the passes are cached, so only the pass
+samples. The door is a Restyle chip on a finished render and a row in the
+pill. Unmeasured on a real render: the feathered join between two
+independently finished parts, and canvases past the files' 0.59 MP.
+
 **SLA's sparsity is on the row: pick `attention sla` and the pill extends with
 a `sparsity` stepper, the way Spectrum's extends with its blend (#78).** The
 number is the fraction of key blocks SLA skips and the one its quality trade

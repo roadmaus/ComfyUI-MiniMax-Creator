@@ -24,15 +24,16 @@ import { openTrim, trimLabel } from "./trim.js";
 import { editPicture, asPick, applyPick, cropLabel } from "./picture.js";
 import { PromptBox, focusEnd, openEditorSheet } from "./prompt.js";
 import { RefinePanel, refineButton, refine } from "./refine.js";
-import { openAspectPopover, openResolutionPopover, openChoicePopover, facesPill, motionPill, neuralPill, aspectGlyph,
+import { openAspectPopover, openResolutionPopover, openChoicePopover, facesPill, motionPill, neuralPill, guideLoraPill, aspectGlyph,
          resolutionPillText,
          PILL_GLYPH, pillSet, pillClass } from "./pills.js";
 import { blobIO, samplingBar, segmentSeedPill } from "./sampling.js";
 import { Stage, stageSource } from "./stage.js";
+import { openRestyle } from "./restyle.js";
 import { familyPill, weightsPill, loadCatalog, adoptWeights } from "./models.js";
 import * as Turbo from "./turbo.js";
 import * as Guide from "./guide.js";
-import { viewUrl, thumbUrl, probe, probeAudio, primeSettings, buildPlate } from "./api.js";
+import { viewUrl, thumbUrl, probe, probeAudio, primeSettings, buildPlate, stillUrl } from "./api.js";
 import * as S from "./state.js";
 import { describeRatio, framesForSeconds, isTrainedLength,
          rulesFor, secondsForFrames } from "./canvas.js";
@@ -433,6 +434,8 @@ export class CreatorEditor {
     this.stage = stage ?? (this.nodeId ? new Stage({
       nodeId: this.nodeId,
       onGallery: () => this.openGallery(),
+      // A look for the finished render, where the family has the pass.
+      onRestyle: S.canDo(this.piece, "guide_lora") ? () => this.restyle() : null,
     }) : null);
     // An injected stage belongs to whoever injected it, and outlives this
     // editor — so `destroy` leaves it alone.
@@ -1490,6 +1493,18 @@ export class CreatorEditor {
     this.noticeTimer = setTimeout(() => { this.notice = null; this.render(); }, 6000);
   }
 
+  /** The library as a look picker, this render's frame in the wipe; a pick
+   *  writes the guide-LoRA block and queues the node — see `restyle.js`. */
+  restyle({ queue = true } = {}) {
+    const source = stageSource(this.stage?.result);
+    return openRestyle({
+      target: this.piece, family: S.pieceFamily(this.piece),
+      frame: source ? stillUrl(source) : null,
+      commit: () => this.commit(),
+      nodeId: queue ? this.nodeId : null,
+    }).then(() => this.render());
+  }
+
   // ---- render --------------------------------------------------------------
 
   render() {
@@ -1602,6 +1617,10 @@ export class CreatorEditor {
                      // node rendered. Read late — the pill is built long before
                      // there is a render, and the answer changes on every one.
                      picture: () => stageSource(this.stage?.result) }),
+        // The guide-LoRA pass, only where the family has it.
+        ...(S.canDo(this.piece, "guide_lora")
+          ? [guideLoraPill({ target: this.piece, commit: () => this.commit(),
+                             onPickLook: () => this.restyle({ queue: false }) })] : []),
         weightsPill({
           piece: this.piece,
           models: this.piece.models,

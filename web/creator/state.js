@@ -1485,6 +1485,94 @@ export const serializeNeural = (block) => (block?.on
                 colour: block.colour, intensity: block.intensity, precision: block.precision } }
   : {});
 
+/**
+ * The guide-LoRA pass: every written pass generated again from noise with
+ * itself pinned as an aligned guide, under a file trained to map one video to
+ * another — a sharpener, a style transfer. H3's alone (`families/h3/guidelora.py`
+ * is authoritative; the capability block carries its checkpoints and the
+ * strength's stops). One block on a piece and on a timeline; off is nothing,
+ * so a blob that never asked round-trips to the bytes it always did.
+ */
+export const GUIDE_LORA_STRENGTH = { min: 0, max: 2, step: 0.05, default: 1 };
+export const GUIDE_LORA_DEFAULT_CHECKPOINT = "ref2va";
+export const emptyGuideLora = () => ({
+  on: false, lora: "", strength: GUIDE_LORA_STRENGTH.default, prompt: "",
+  checkpoint: GUIDE_LORA_DEFAULT_CHECKPOINT,
+  // A reference picture beside the guide — a look's frame, `atlas:000123` —
+  // presented as <Picture 1>. What a restyle sets; a sharpen leaves it empty.
+  picture: "",
+  // What the look is called, for the pill. The picture is the fact; this is
+  // its name, and a hand-edited block that names none reads as the picture.
+  look: "",
+});
+
+/** Whatever was in the blob, clamped onto `guidelora.py`'s ranges. */
+export function parseGuideLora(raw, family = DEFAULT_VIDEO_FAMILY) {
+  const block = emptyGuideLora();
+  const given = raw && typeof raw === "object" ? raw : {};
+  block.on = given.on === true;
+  if (typeof given.lora === "string") block.lora = given.lora.trim();
+  const strength = Number(given.strength);
+  block.strength = Number.isFinite(strength)
+    ? Math.min(GUIDE_LORA_STRENGTH.max, Math.max(GUIDE_LORA_STRENGTH.min, strength))
+    : GUIDE_LORA_STRENGTH.default;
+  if (typeof given.prompt === "string") block.prompt = given.prompt.trim();
+  if (typeof given.picture === "string") block.picture = given.picture.trim();
+  if (typeof given.look === "string") block.look = given.look.trim();
+  const allowed = videoFamily(family).capabilities?.guide_lora?.checkpoints
+    ?? [GUIDE_LORA_DEFAULT_CHECKPOINT];
+  block.checkpoint = allowed.includes(given.checkpoint)
+    ? given.checkpoint : GUIDE_LORA_DEFAULT_CHECKPOINT;
+  return block;
+}
+
+/** The published caption for a guide file, off the family's table, or "".
+ *  Mirrors `guidelora.caption_for`: the stem, lower-cased, first match wins. */
+export function guideLoraCaption(name, family = DEFAULT_VIDEO_FAMILY) {
+  const stem = String(name ?? "").split("/").pop().toLowerCase();
+  const table = videoFamily(family).capabilities?.guide_lora?.captions ?? [];
+  return table.find((entry) => stem.includes(entry.match))?.prompt ?? "";
+}
+
+/** Absent while it is off, so every blob that never asked for one is unchanged. */
+export const serializeGuideLora = (block) => (block?.on
+  ? { guide_lora: { on: true, lora: block.lora, strength: block.strength,
+                    prompt: block.prompt, checkpoint: block.checkpoint,
+                    picture: block.picture, look: block.look } }
+  : {});
+
+/** The roles the pass can play, off the family's table — `guidelora.ROLES`:
+ *  `{key, label, match, blurb, prompt}`, the style role with its grammar too.
+ *  Empty where the family has no guide pass. */
+export const guideLoraRoles = (family = DEFAULT_VIDEO_FAMILY) =>
+  videoFamily(family).capabilities?.guide_lora?.roles ?? [];
+
+/** The role a file plays, by its name — the first row whose `match` is in the
+ *  stem, lower-cased — or null for a file the table does not know. */
+export function guideLoraRole(name, family = DEFAULT_VIDEO_FAMILY) {
+  const stem = String(name ?? "").split("/").pop().toLowerCase();
+  if (!stem) return null;
+  return guideLoraRoles(family).find((role) => stem.includes(role.match)) ?? null;
+}
+
+/** The style file's caption grammar, off the family's table: `{match, prefix,
+ *  picture_form}`. Mirrors `guidelora.STYLE`; null where the family has none. */
+export const guideLoraStyle = (family = DEFAULT_VIDEO_FAMILY) =>
+  videoFamily(family).capabilities?.guide_lora?.style ?? null;
+
+/** The sentence a restyle tells the file: the trigger, the picture form, then
+ *  the attributes — lower-case, comma-separated, one full stop. */
+export function restyleCaption(attributes, family = DEFAULT_VIDEO_FAMILY) {
+  const style = guideLoraStyle(family);
+  if (!style) return "";
+  const list = attributes.map((word) => String(word).trim().toLowerCase()).filter(Boolean);
+  return `${style.prefix} ${style.picture_form} ${list.join(", ")}.`;
+}
+
+/** Whether a guide-LoRA block is a restyle: it carries a picture. The pill
+ *  reads its label off this. */
+export const isRestyle = (block) => Boolean(block?.on && block.picture);
+
 export const emptyFace = () => ({
   on: false, canvas: DEFAULT_FACE_CANVAS, denoise: DEFAULT_FACE_DENOISE,
 });
@@ -1570,6 +1658,8 @@ export function emptyState() {
     face: emptyFace(),
     // The DLSS 5 refiner over the finished frames, off until asked for.
     neural: emptyNeural(),
+    // The guide-LoRA pass over the written passes, off until asked for.
+    guide_lora: emptyGuideLora(),
     // "auto" follows the mode. Pinning it runs the same payload on the other
     // weights; compile.py decides which pins it will accept.
     checkpoint: "auto",
@@ -1640,6 +1730,7 @@ export function parseState(raw) {
       state.refine_denoise = clampRefineDenoise(state.refine_denoise);
       state.face = parseFace(state.face);
       state.neural = parseNeural(state.neural);
+      state.guide_lora = parseGuideLora(state.guide_lora, pieceFamily(state));
       state.models = parseModels(state.models);
       state.upscale_models = parseUpscalerModels(state.upscale_models);
       state.turbo = parseTurbo(state.turbo);
@@ -1808,6 +1899,7 @@ export function serializeState(state) {
       ? { refine_denoise: state.refine_denoise } : {}),
     ...serializeFace(state.face),
     ...serializeNeural(state.neural),
+    ...serializeGuideLora(state.guide_lora),
     // The cast, absent when nobody was cast — the same terms as the timeline's.
     // Not in serializeCommon: a segment's cast is the piece's, mirrored down,
     // and writing the mirror back would store every subject once per card.
@@ -2204,6 +2296,8 @@ export function emptyTimeline() {
     face: emptyFace(),
     // The DLSS 5 refiner over the finished frames, off until asked for.
     neural: emptyNeural(),
+    // The guide-LoRA pass over the written passes, off until asked for.
+    guide_lora: emptyGuideLora(),
     // Patched onto every segment, in front of whatever that segment adds. What
     // a turbo LoRA is for: you want it on the whole clip, not shot by shot.
     loras: [],
@@ -3140,6 +3234,7 @@ export function parseTimeline(raw) {
       timeline.refine_denoise = clampRefineDenoise(timeline.refine_denoise);
       timeline.face = parseFace(timeline.face);
       timeline.neural = parseNeural(timeline.neural);
+      timeline.guide_lora = parseGuideLora(timeline.guide_lora, pieceFamily(timeline));
       timeline.models = parseModels(timeline.models, timeline.family);
       timeline.models_spare = parseSpareModels(timeline.models_spare);
       timeline.sampling_spare = parseSamplingSpare(timeline.sampling_spare);
@@ -3303,6 +3398,7 @@ export function serializeTimeline(timeline) {
       ? { refine_denoise: timeline.refine_denoise } : {}),
     ...serializeFace(timeline.face),
     ...serializeNeural(timeline.neural),
+    ...serializeGuideLora(timeline.guide_lora),
     loras: serializeLoras(timeline.loras ?? [], pieceFamily(timeline)),
     // The reference pool. Absent when empty, so a timeline that never used one
     // round-trips exactly as it always did.

@@ -103,6 +103,7 @@ This pack is glue. The work underneath it belongs to other people:
 - [OpenVDN](https://github.com/OpenVDN/vdn-minimax-h3) - Video Delta Net itself: the hybrid attention, the training and the stages the pill loads
 - NVIDIA - the DLSS 5 neural renderer itself. Nothing of theirs ships here; the weights are extracted from your own driver DLL
 - [ReDetail](https://github.com/Bambushu/redetail) by Bambushu - the graph and the measurements behind the ReDetail upscale
+- [Minimax-H3-ComfyUI](https://huggingface.co/Alissonerdx/Minimax-H3-ComfyUI) by Alissonerdx - the guide LoRAs behind the guide pass, and the rig they run in; trained on [ostris](https://github.com/ostris)'s ai-toolkit fork with guide-latent support
 - [Raylight](https://github.com/Karmabu/raylight) by Karmabu - H3 across two GPUs
 - MiniMax - H3 itself, and the reference guide this pack's prompts are written to
 - Krea, Ideogram, Black Forest Labs and the Qwen team - the four still families beside H3 and LTX 2.5

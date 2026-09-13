@@ -1,0 +1,132 @@
+"""`guidelora.py`: the guide-LoRA pass's request, its stack, its frame grid.
+
+    python3 tests/test_guidelora.py
+
+Pure: no torch, no ComfyUI.
+"""
+
+import layout
+
+pkg = layout.load("canvas", "h3_declare", "guidelora")
+gl = pkg.guidelora
+
+from harness import FAILURES, check, passed
+
+passed("the guide-LoRA request reads, clamps, refuses and stacks as written")
+
+
+class Run:
+    def __init__(self, dropped=""):
+        self.dropped = dropped
+
+
+GUIDE = "h3/minimax_h3_lms_v1.0_r64.safetensors"
+DISTILL = "h3/turbo.safetensors"
+STACK = [{"name": DISTILL, "strength": 0.6, "audio": 0.5, "modes": ["ref2va"]},
+         {"name": "h3/character.safetensors", "strength": 0.8}]
+
+# --- reading the block ---------------------------------------------------------------
+
+check("no block is off", bool(gl.Request.of({})), False)
+check("garbage is off", bool(gl.Request.of({"guide_lora": "yes"})), False)
+check("a string 'true' is not on", bool(gl.Request.of({"guide_lora": {"on": "true", "lora": GUIDE}})), False)
+check("off carries no stack", gl.Request.of({"guide_lora": {"on": False, "lora": GUIDE}}).entries, [])
+
+on = gl.Request.of({"guide_lora": {"on": True, "lora": f"  {GUIDE} ", "strength": "1.3",
+                                   "prompt": " sharp ", "checkpoint": "fl2va"}})
+check("on", bool(on), True)
+check("the name is trimmed", on.lora, GUIDE)
+check("the strength is a number", on.strength, 1.3)
+check("the prompt is trimmed", on.prompt, "sharp")
+check("the checkpoint may be the plain one", on.checkpoint, "fl2va")
+check("as_dict round-trips", gl.Request.of({"guide_lora": on.as_dict()}), on)
+
+clamped = gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "strength": 9,
+                                        "checkpoint": "krea2"}})
+check("the strength is clamped", clamped.strength, gl.MAX_STRENGTH)
+check("an unknown checkpoint falls to the trained one", clamped.checkpoint, gl.DEFAULT_CHECKPOINT)
+check("a NaN strength falls to the default",
+      gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "strength": "nan"}}).strength,
+      gl.DEFAULT_STRENGTH)
+
+try:
+    gl.Request.of({"guide_lora": {"on": True, "lora": ""}})
+    FAILURES.append("on with no file should refuse")
+except ValueError as exc:
+    check("on with no file refuses, naming the pill", "pill" in str(exc), True)
+
+# --- the caption --------------------------------------------------------------------
+
+LMS = "Enhance this video with sharp, crisp details while preserving a natural photorealistic appearance."
+check("the sharpener's caption, by stem", gl.caption_for("h3/Minimax_H3_LMS_v1.0_r64.safetensors"), LMS)
+check("a style file has none", gl.caption_for("h3/minimax_h3_style_transfer_v1.0_r64.safetensors"), "")
+check("an empty prompt takes the caption",
+      gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE}}).prompt, LMS)
+check("a written prompt is kept",
+      gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "prompt": "neon"}}).prompt, "neon")
+check("off fills nothing", gl.Request.of({"guide_lora": {"on": False, "lora": GUIDE}}).prompt, "")
+
+# --- the picture and the style grammar ------------------------------------------
+
+pic = gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "picture": " atlas:000006 ", "look": " Claymation "}})
+check("the picture is trimmed", pic.picture, "atlas:000006")
+check("the look's name rides along", pic.look, "Claymation")
+check("a number is not a picture", gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE, "picture": 4}}).picture, "")
+check("the style grammar names the file", gl.STYLE["match"], "style_transfer")
+check("...opens with the trigger", gl.STYLE["prefix"], "style_transfer:")
+check("...and cites the picture", "<Picture 1>" in gl.STYLE["picture_form"], True)
+
+# --- the stack -------------------------------------------------------------------------
+
+plain = gl.Request.of({"guide_lora": {"on": True, "lora": GUIDE}, "loras": STACK})
+check("no turbo: the guide file alone, at the block's strength",
+      plain.entries, [{"name": GUIDE, "strength": 1.0}])
+
+turbo = {"guide_lora": {"on": True, "lora": GUIDE, "strength": 1.3},
+         "turbo": {"on": True, "lora": DISTILL}, "loras": STACK}
+check("turbo: the piece's distill entry as it sits, then the guide — never the rest",
+      gl.Request.of(turbo).entries,
+      [STACK[0], {"name": GUIDE, "strength": 1.3}])
+check("the distill entry is a copy", gl.Request.of(turbo).entries[0] is STACK[0], False)
+check("turbo switched off leaves the distill out",
+      gl.Request.of({**turbo, "turbo": {"on": False, "lora": DISTILL}}).entries,
+      [{"name": GUIDE, "strength": 1.3}])
+check("a merged turbo (no file) has nothing to add",
+      gl.Request.of({**turbo, "turbo": {"on": True, "merged": True}}).entries,
+      [{"name": GUIDE, "strength": 1.3}])
+check("a distill disabled in the stack is not worn",
+      gl.Request.of({**turbo, "loras": [{**STACK[0], "enabled": False}]}).entries,
+      [{"name": GUIDE, "strength": 1.3}])
+check("under VDN the dropped distill stays out",
+      gl.Request.of(turbo, Run(dropped=DISTILL)).entries, [{"name": GUIDE, "strength": 1.3}])
+
+# The published distill, when models/loras holds one: worn at its own strength
+# in front of the guide, whatever the piece's turbo says — and under VDN too,
+# since it is the pass's file and not the piece's.
+PUBLISHED = "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+INSTALLED = ["other/thing.safetensors", DISTILL, "H3/" + PUBLISHED]
+check("the published distill is picked by name, case-insensitively, wherever it sits",
+      gl.pick_distill(INSTALLED + ["x/MiniMax_H3_REF2V_Turbo_8step.safetensors"]),
+      "H3/" + PUBLISHED)
+check("nothing published installed is empty", gl.pick_distill([DISTILL, "a.safetensors"]), "")
+check("with the published distill installed the pass wears it, then the guide",
+      gl.Request.of(turbo, installed=INSTALLED).entries,
+      [{"name": "H3/" + PUBLISHED, "strength": gl.DISTILL_STRENGTH},
+       {"name": GUIDE, "strength": 1.3}])
+check("...with turbo off too",
+      gl.Request.of({**turbo, "turbo": {"on": False}}, installed=INSTALLED).entries,
+      [{"name": "H3/" + PUBLISHED, "strength": gl.DISTILL_STRENGTH},
+       {"name": GUIDE, "strength": 1.3}])
+check("...and under VDN", gl.Request.of(turbo, Run(dropped=DISTILL), INSTALLED).entries,
+      [{"name": "H3/" + PUBLISHED, "strength": gl.DISTILL_STRENGTH},
+       {"name": GUIDE, "strength": 1.3}])
+
+# --- the grid ----------------------------------------------------------------------------
+
+check("the grid", [gl.padded_frames(n) for n in (1, 5, 6, 22, 23, 102, 124)],
+      [5, 5, 22, 22, 39, 107, 124])
+try:
+    gl.padded_frames(0)
+    FAILURES.append("no frames should refuse")
+except ValueError:
+    pass

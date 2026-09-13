@@ -17,14 +17,14 @@ nothing outside an expanded graph ever sees.
 """
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import comfy.sample
 
 from ... import (accel, canvas, compile as compiler, guide as guides, media,
                  models as core, raylight, sampling as sampling_mod, settings)
 from .. import base
-from . import declare, derope, models as slots
+from . import declare, derope, guidelora, models as slots
 
 # Whether this core can start a sampler with the noise switched off on an H3
 # audio+video latent. The lead-in's second sitting does exactly that — the noise
@@ -361,6 +361,11 @@ class H3(base.Family):
             # `accel.opening` — and the distill file is already out of the
             # piece, so the lead model is the first output, unpatched twice.
             inputs["hold_lora"] = run.lora
+        if settings.lora_loader() != settings.DEFAULTS["lora_loader"]:
+            # The loader is a machine setting, and a setting read behind the
+            # node is invisible to the cache — so it rides as an input, and
+            # only off its default, so every render before it keeps its key.
+            inputs["lora_loader"] = settings.lora_loader()
         # The VAEs are wired into the encoder only when this segment actually
         # encodes with them — a keyframe or a sound seam. A text-only segment
         # touches neither until decode, and a decode node runs after sampling
@@ -783,6 +788,45 @@ class H3(base.Family):
     restores_seams = True
     hands_latents = True
     fixes_motion = True
+    finishes = True
+
+    def finish_request(self, data, run):
+        import folder_paths
+
+        request = guidelora.Request.of(data, run, folder_paths.get_filename_list("loras"))
+        return request if request else None
+
+    def finish_routes(self, where, finish):
+        # The pass samples on the checkpoint the file was trained against,
+        # whatever the strip's cards route to; named here so the loader is
+        # built and `check` asks for the file before anything is queued.
+        out = dict(where)
+        out.setdefault(finish.checkpoint, "The guide LoRA pass")
+        return out
+
+    def emit_finish(self, graph, links, weights, sampling, acceleration, compiled,
+                    reel, finish, run, seed):
+        if raylight.enabled(weights):
+            raise ValueError(
+                "The guide LoRA pass samples on this side of the wire and the "
+                "Raylight backend loads the checkpoint inside Ray's workers. "
+                "Switch the pass off, or render on one GPU.")
+        from . import guidepass
+
+        # The stack goes on first, then the same three patches every sampler
+        # in this module runs behind — see `MiniMaxH3GuideModel` for why the
+        # order is the segment node's. On the pass's own row: the checkpoints'
+        # own shifts and its own step count, whatever the piece's pills say.
+        stacked = graph.node(
+            guidepass.MODEL_NODE, model=getattr(links, finish.checkpoint),
+            loras=json.dumps(finish.entries, sort_keys=True),
+            checkpoint=finish.checkpoint).out(0)
+        own = replace(
+            sampling, steps=guidelora.ROW["steps"],
+            shift_video=guidelora.ROW["shift_video"],
+            shift_audio=guidelora.ROW["shift_audio"])
+        model = patched(graph, stacked, own, acceleration, weights)
+        return guidepass.emit(graph, model, links, sampling, reel, finish, seed)
 
     def emit_motion_fix(self, graph, links, payload, compiled, written, latent,
                         head, weights, sampling, acceleration, seed):

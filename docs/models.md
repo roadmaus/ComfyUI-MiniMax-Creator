@@ -40,6 +40,13 @@ switch on the sampler row finds them there.
 Optional: [`taeh3.safetensors`](https://github.com/madebyollin/taehv/blob/main/safetensors/taeh3.safetensors)
 in `vae_approx` gives H3 a properly decoded live preview.
 
+Optional: a **guide LoRA** for the sampler row's guide pill — a file trained
+with the source clip as an aligned guide. Alissonerdx's
+[Minimax-H3-ComfyUI](https://huggingface.co/Alissonerdx/Minimax-H3-ComfyUI)
+carries `minimax_h3_lms_v1.0_r64.safetensors` (a sharpener) and
+`minimax_h3_style_transfer_v1.0_r64.safetensors` under `loras/`; both go in
+`models/loras` and both were trained against Ref2VA.
+
 Optional: a **VDN-H3 stage** for the sampler row's VDN pill. A stage is a
 directory, not a file, and it goes under `models/vdn/` with its layout intact
 (`model_spec.json`, `linear_branch/`, `adapters/`). The bf16 release is

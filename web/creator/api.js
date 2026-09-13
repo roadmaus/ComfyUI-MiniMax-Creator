@@ -552,12 +552,25 @@ function normalizePinned(raw) {
   return out;
 }
 
+/** What the guide-LoRA pass was last set to: which role, and the file each
+ *  role last ran — so switching the pass on in a new piece is one click, not
+ *  a search. Files are checked against the disk when they are used, like the
+ *  pins. */
+function normalizeGuide(raw) {
+  const files = {};
+  for (const [key, name] of Object.entries(raw?.files ?? {})) {
+    if (typeof key === "string" && typeof name === "string" && name) files[key] = name;
+  }
+  return { role: typeof raw?.role === "string" ? raw.role : "", files };
+}
+
 function normalizeLoraPrefs(raw) {
   return {
     folder: typeof raw?.folder === "string" ? raw.folder : "",
     favorites: names(raw?.favorites),
     used: normalizeUsed(raw?.used),
     pinned: normalizePinned(raw?.pinned),
+    guide: normalizeGuide(raw?.guide),
   };
 }
 
@@ -613,7 +626,7 @@ export async function clearLoraPrefs() {
 export async function loraPrefsHeld() {
   const prefs = await loadLoraPrefs();
   return new Set([...prefs.favorites, ...Object.keys(prefs.used),
-                  ...Object.values(prefs.pinned)]).size;
+                  ...Object.values(prefs.pinned), ...Object.values(prefs.guide.files)]).size;
 }
 
 /** The card's image or clip, from wherever the server found one — a sidecar's

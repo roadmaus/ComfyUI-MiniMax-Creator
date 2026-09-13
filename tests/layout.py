@@ -68,6 +68,7 @@ MODULES = {
     "qwenedit_still": "families.qwenedit.still",
     "flux2klein_still": "families.flux2klein.still",
     "h3_declare": "families.h3.declare",
+    "guidelora": "families.h3.guidelora",
     "h3_models": "families.h3.models",
     "h3_grammar": "families.h3.grammar",
     "ltx25_grammar": "families.ltx25.grammar",

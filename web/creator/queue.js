@@ -11,8 +11,15 @@
 // queue, whether one is running — pushed to whoever asked. `run` is the other
 // half: post a job, and resolve when the queue has finished it.
 
+import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
 import { t } from "./i18n.js";
+
+/** Queue one node, as pressing its Render does. A bare array for the target —
+ *  see `fullscreen.queue` for why not `{queueNodeIds}`. */
+export function queueNode(nodeId) {
+  return app.queuePrompt(0, 1, [String(nodeId)]).catch(() => {});
+}
 
 const listeners = new Set();
 

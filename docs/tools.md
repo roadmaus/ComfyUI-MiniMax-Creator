@@ -292,3 +292,58 @@ remembered per file.
 LTX 2.5 only: a second pass over a finished render through Lightricks' x2
 IC-LoRA. It re-renders rather than resolves, inventing detail as it goes,
 which is why it lives in a render's own settings and not on the upscale bench.
+
+## Guide LoRA pass
+
+MiniMax H3 only: a second pass over a finished render through a **guide
+LoRA**, a file trained with the source clip pinned as an *aligned guide* so
+the model is handed a pixel-for-pixel correspondence rather than a
+description. The two published so far are
+[Alissonerdx's](https://huggingface.co/Alissonerdx/Minimax-H3-ComfyUI)
+`minimax_h3_lms` ("a little more sharpness") and `minimax_h3_style_transfer`,
+both rank-64 files over Ref2VA, trained on ostris's ai-toolkit fork. Drop
+them in `models/loras`.
+
+The `guide LoRA` pill sits on the sampler row of the Creator and the
+Timeline, beside `DLSS 5`. Switch it on, pick the file, and its caption is
+put in the prompt box for you — the sharpener's published one, or the trigger
+words on the file's card; a style file wants the style written there instead. Every written pass is
+then generated again from noise, the whole schedule, with itself encoded and
+pinned at frame 0 as one guide block, under the file. It runs at the size the
+pass was written, on its own rig rather than the piece's: the published one —
+8 steps of euler on the checkpoints' own shifts, with the distill the files
+were trained against (`minimax_h3_ref2v_turbo_4step`, any `ref2v…turbo` file
+in `models/loras`) at 1.0 beside the guide file — and on the checkpoint the
+file was trained against whatever the cards route to. Without that distill
+installed the piece's own turbo file stands in, and the pass is measurably
+under-driven: a style comes through by half, a sharpen barely. The
+soundtrack rides through untouched.
+
+It runs over the whole reel after the last pass and before ReDetail and the
+neural refiner, never inline at a seam: a sharpened tail handed to the next
+shot as its anchor is a ratchet, the same one the DLSS refiner was measured
+to have. Each part is generated on its own, so across a feathered seam two
+generations meet; the guide is near-clean in training and the output is
+locked to it, so the join is expected to hold. That is unmeasured on a real
+render as of 2026-09-12, as is the pass at canvases past the 0.59 MP the
+files' examples were made at.
+
+Cost is a second full generation per pass. Nothing else is loaded: the
+checkpoint, the encoder and the VAE are the render's own.
+
+### Restyle
+
+The style file is the same pass with a picture. Press **Restyle** on a
+finished render (the chip beside Gallery), or *Pick a look from the style
+atlas* in the pill's popover: the library opens on the Style tab as a picker,
+with your render's own frame on the left of a wipe and every look you press
+on the right. Under it is what the file is told, in the grammar it was
+trained on: the trigger, "Re-render this video in the style of the picture:",
+then the look's descriptor cut into three to five attributes as chips. Strike
+one, add one; a chip that names a studio or a franchise is marked, because a
+name there makes the model stop looking at the picture. **Restyle this
+render** writes the style file, the look's frame as the picture and the
+caption onto the pass and queues the node. The written passes are cached, so
+only the pass samples. The style file is found by its name under
+`models/loras`; without one the button says where to get it.
+

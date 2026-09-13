@@ -20,6 +20,16 @@ One call and not one per LoRA, because a stack fuses: several adapters on one
 layer concatenate along the rank axis into a single pair, so ten LoRAs cost one
 extra matmul per layer rather than ten.
 
+**Measured against core's, 2026-09-13, on the lab's int8 ConvRot bakes.** Core
+no longer requantizes the way that argument assumes: since its June fixes it
+dequantizes a touched layer, adds the delta and requantizes with fresh
+stochastic rounding, so the whole layer's rounding is re-rolled to carry a
+delta a fifth its size. Same seed, same card, two loaders: two different shots.
+This stack keeps the bake and adds the delta exactly, and stays the default;
+`settings.lora_loader` lets a machine pick core's to match a result made
+outside this pack, and the guide LoRA pass always takes core's, since that is
+what its files were published against (`h3/guidepass.MiniMaxH3GuideModel`).
+
 **Every other family goes through core's loader**, which is `registry.LORA_STACK`'s
 whole content: the vendored stack is an argument about H3's weights, not about
 LoRAs, and a second family's adapters are core's to place. Which is also the
@@ -131,7 +141,7 @@ def modality(entry):
     return {"video": 1.0, "text": 1.0, "audio": max(0.0, min(1.0, audio))}
 
 
-def apply(model, entries, target, without="", family=registry.DEFAULT_VIDEO):
+def apply(model, entries, target, without="", family=registry.DEFAULT_VIDEO, loader=""):
     """Patch `model` with every enabled LoRA that claims the `target` checkpoint.
 
     Returns the model untouched when the stack is empty — a piece with no LoRAs
@@ -139,12 +149,16 @@ def apply(model, entries, target, without="", family=registry.DEFAULT_VIDEO):
     importable either.
 
     Which stack does the patching is the family's, off `registry.LORA_STACK`;
-    see this module's own docstring for the whole of the argument.
+    see this module's own docstring for the whole of the argument. `loader`
+    overrides it for one caller — "core" or "h3lora" — where the result has to
+    match what a file's own published workflow produces rather than what this
+    pack argues is exact (the guide-LoRA pass; `guidepass.MiniMaxH3GuideModel`
+    says why).
     """
     rows = stack(entries, target, without=without, family=family)
     if not rows:
         return model
-    if registry.LORA_STACK.get(family) == "h3lora":
+    if (loader or registry.LORA_STACK.get(family)) == "h3lora":
         return _apply_h3(model, rows)
     return _apply_core(model, rows)
 

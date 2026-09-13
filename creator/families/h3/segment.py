@@ -43,6 +43,11 @@ def _parse(data):
         raise ValueError(f"segment data is not valid JSON: {exc}") from exc
 
 
+# The settings page's word for each loader `lora.apply` knows; the default
+# ("vendored") is never written into the graph, so "" is the family's own.
+LOADER_OF = {"core": "core", "vendored": "h3lora"}
+
+
 class MiniMaxH3TimelineSegment(io.ComfyNode):
     """One segment of a timeline — the Creator node's job for one shot.
 
@@ -147,6 +152,11 @@ class MiniMaxH3TimelineSegment(io.ComfyNode):
                 # inputs, and so the cache key, it had before this existed.
                 io.String.Input("sampler_backend", optional=True,
                     tooltip="'raylight' when the transformer is loaded in Ray workers rather than wired to this node."),
+                # Which loader puts the stack on — the settings page's choice,
+                # carried as an input so the cache sees it, and written only
+                # off its default (`settings.LORA_LOADERS`).
+                io.String.Input("lora_loader", optional=True,
+                    tooltip="'core' to put the LoRAs on through ComfyUI's own loader instead of the pack's vendored stack."),
             ],
             outputs=[
                 io.Model.Output(display_name="model"),
@@ -186,8 +196,10 @@ class MiniMaxH3TimelineSegment(io.ComfyNode):
                 prev_image=None, prev_audio=None,
                 next_image=None, next_audio=None, hold_lora="",
                 prev_latent=None, anchor_latent=None,
-                sampler_backend="", storyboard_image=None) -> io.NodeOutput:
+                sampler_backend="", storyboard_image=None,
+                lora_loader="") -> io.NodeOutput:
         payload = _parse(segment_data)
+        loader = LOADER_OF.get(lora_loader or "", "")
 
         # Which segment the queue has reached, told to the stage the moment
         # this segment starts encoding — the sampler that follows reports steps
@@ -255,8 +267,8 @@ class MiniMaxH3TimelineSegment(io.ComfyNode):
             # — otherwise the second output is this one, and no LoRA is loaded
             # twice.
             lead = lora.apply(model, entries, compiled.checkpoint,
-                              without=hold_lora) if hold_lora else None
-            model = lora.apply(model, entries, compiled.checkpoint)
+                              without=hold_lora, loader=loader) if hold_lora else None
+            model = lora.apply(model, entries, compiled.checkpoint, loader=loader)
 
         loaded = media.load_all(compiled)
         if compiled.storyboard:
