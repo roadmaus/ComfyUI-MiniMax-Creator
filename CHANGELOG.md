@@ -6,6 +6,13 @@ exactly as it was written, wall of text and all.
 
 ## Unreleased
 
+**Pasted names become chips.** A pasted `@anna`, `@img-1` or spoken line used
+to sit as plain text until the shot was closed and reopened: only `build()`
+draws chips, and paste went through the keystroke path, which never asks for
+one so a half-typed name is not swallowed. Paste now rebuilds the box the way
+reopening does and puts the caret back where the text ended (#79). Typing is
+untouched, so nothing runs per key.
+
 **Guide LoRA pass: the pill asks what the pass does, not which file.** The
 popover opens on a switch of roles — Sharpen, Style, Other — read off a table
 in `guidelora.py` that names what each published file does, so the author's

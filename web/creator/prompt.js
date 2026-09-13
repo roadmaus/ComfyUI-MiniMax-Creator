@@ -1178,7 +1178,66 @@ export class PromptBox {
     // goes anyway.
     if (event.dataTransfer) this.caretAt(event);
     this.insertText(text.replace(/\r\n?/g, "\n"));
+    // A chip is drawn by `build`, and a keystroke never asks for one: the menu
+    // writes the chip itself, and hand-typing "@anna" is left as text so the
+    // half-typed name is not swallowed. A paste is neither — it lands a whole
+    // `@anna` or a whole spoken line at once — so the box is rebuilt the way
+    // reopening it would, and the caret put back where the text ended (#79).
+    // Nothing is replaced when nothing changed, for the reason `refresh` gives.
+    const at = this.caretOffset();
+    const built = this.build(this.getValue());
+    if (!this.sameAs(built)) {
+      this.root.replaceChildren(...built);
+      if (at !== null) this.placeCaret(at);
+    }
     this.onEdit();
+  }
+
+  /** The collapsed caret as an offset into the bare text, or null with no
+   *  caret in the box. The caret sits in a text node while typing, but between
+   *  two children of an element right after `insertText` — `setStartAfter`
+   *  leaves it there — and both are read. */
+  caretOffset() {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !selection.isCollapsed) return null;
+    const range = selection.getRangeAt(0);
+    const node = range.startContainer;
+    if (!this.root.contains(node)) return null;
+    return this.offsetOf(node, node.nodeType === Node.TEXT_NODE
+      ? bare(node.nodeValue.slice(0, range.startOffset)).length
+      : range.startOffset);
+  }
+
+  /** Where a DOM position sits in the bare text — the offsets `getValue` and
+   *  the compiler count in. `within` is a bare character offset into a text
+   *  node `target`, or a child index into an element one, as a Range spells
+   *  the two. A spoken line counts as the text it stands for, a chip as its
+   *  `@handle`, and a block the engine put in as the newline it means. Null
+   *  if `target` is not in the box. */
+  offsetOf(target, within) {
+    let at = 0;
+    let found = null;
+    const walk = (parent) => {
+      let index = 0;
+      for (const node of parent.childNodes) {
+        if (found !== null) return;
+        if (parent === target && index === within) { found = at; return; }
+        index += 1;
+        if (node === target) { found = at + within; return; }
+        if (node.nodeType === Node.TEXT_NODE) at += bare(node.nodeValue).length;
+        else if (node.dataset?.say !== undefined) at += node.dataset.say.length;
+        else if (node.dataset?.handle) at += node.dataset.handle.length + 1;
+        else if (node.tagName === "BR") at += 1;
+        else {
+          if (BLOCK.has(node.tagName) && at) at += 1;
+          walk(node);
+        }
+      }
+      // After the last child, which is where `setStartAfter` puts it.
+      if (found === null && parent === target && index === within) found = at;
+    };
+    walk(this.root);
+    return found;
   }
 
   /** Put the caret where a pointer event landed. */
@@ -1317,23 +1376,7 @@ export class PromptBox {
   triggerSpot() {
     const trigger = this.triggerRange();
     if (!trigger) return null;
-    let at = 0;
-    let found = null;
-    const walk = (parent) => {
-      for (const node of parent.childNodes) {
-        if (found !== null) return;
-        if (node === trigger.node) { found = at + trigger.start; return; }
-        if (node.nodeType === Node.TEXT_NODE) at += bare(node.nodeValue).length;
-        else if (node.dataset?.say !== undefined) at += node.dataset.say.length;
-        else if (node.dataset?.handle) at += node.dataset.handle.length + 1;
-        else if (node.tagName === "BR") at += 1;
-        else {
-          if (BLOCK.has(node.tagName) && at) at += 1;
-          walk(node);
-        }
-      }
-    };
-    walk(this.root);
+    const found = this.offsetOf(trigger.node, trigger.start);
     if (found === null) return null;
     let spot = found;
     let length = trigger.end - trigger.start;
